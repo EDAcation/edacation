@@ -3,7 +3,7 @@ import path from 'path';
 import {FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_VERILOG} from '../util.js';
 
 import type {ProjectConfiguration, YosysOptions} from './configuration.js';
-import {VENDORS, type Vendor} from './devices.js';
+import {VENDORS} from './devices.js';
 import type {Project} from './project.js';
 import {getCombined, getOptions, getTarget, getTargetFile} from './target.js';
 
@@ -39,7 +39,7 @@ export const generateYosysWorkerOptions = (
     const target = getTarget(configuration, targetId);
     const options = getOptions(configuration, targetId, 'yosys', DEFAULT_OPTIONS);
 
-    const vendor = (VENDORS as Record<string, Vendor>)[target.vendor];
+    const vendor = VENDORS[target.vendor];
     const family = vendor.families[target.family];
 
     const inputFiles = projectInputFiles.filter((inputFile) =>
