@@ -13,9 +13,9 @@ export interface NextpnrWorkerOptions {
 }
 
 const DEFAULT_OPTIONS: NextpnrOptions = {
-    placedSvg: true,
-    routedSvg: true,
-    routedJson: true
+    placedSvgPath: 'placed.svg',
+    routedSvgPath: 'routed.svg',
+    routedJsonPath: 'routed.nextpnr.json'
 };
 
 export const generateNextpnrWorkerOptions = (
@@ -78,18 +78,18 @@ export const generateNextpnrWorkerOptions = (
 
     args.push('--json', inputFiles[0]);
 
-    if (options.placedSvg) {
-        const file = getTargetFile(target, 'placed.svg');
+    if (options.placedSvgPath) {
+        const file = getTargetFile(target, options.placedSvgPath);
         outputFiles.push(file);
         args.push('--placed-svg', file);
     }
-    if (options.routedSvg) {
-        const file = getTargetFile(target, 'routed.svg');
+    if (options.routedSvgPath) {
+        const file = getTargetFile(target, options.routedSvgPath);
         outputFiles.push(file);
         args.push('--routed-svg', file);
     }
-    if (options.routedJson) {
-        const file = getTargetFile(target, 'routed.nextpnr.json');
+    if (options.routedJsonPath) {
+        const file = getTargetFile(target, options.routedJsonPath);
         outputFiles.push(file);
         args.push('--write', file);
     }

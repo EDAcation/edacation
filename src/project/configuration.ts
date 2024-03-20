@@ -47,9 +47,9 @@ const schemaYosysTarget = z.object({
 });
 
 const schemaNextpnrOptions = z.object({
-    placedSvg: z.boolean().optional(),
-    routedSvg: z.boolean().optional(),
-    routedJson: z.boolean().optional()
+    placedSvgPath: z.string().optional(),
+    routedSvgPath: z.string().optional(),
+    routedJsonPath: z.string().optional()
 });
 
 const schemaNextpnr = z.object({
