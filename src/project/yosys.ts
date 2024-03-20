@@ -14,6 +14,19 @@ export interface YosysWorkerOptions {
     commands: string[];
 }
 
+interface YosysRTLOutputFiles {
+    stats: string;
+    rtl: string;
+}
+
+interface YosysSynthPrepOutputFiles {
+    preSynth: string;
+}
+
+interface YosysSynthOutputFiles {
+    netlist: string;
+}
+
 const DEFAULT_OPTIONS: YosysOptions = {
     optimize: true
 };
@@ -79,7 +92,7 @@ export const getYosysWorkerOptions = (project: Project, targetId: string): Yosys
     };
 };
 
-export const generateYosysRTLCommands = (inputFiles: string[]): string[] => {
+export const generateYosysRTLCommands = (inputFiles: string[], outputFiles: YosysRTLOutputFiles): string[] => {
     const verilogFiles = inputFiles.filter((file) => FILE_EXTENSIONS_VERILOG.includes(path.extname(file).substring(1)));
 
     // Yosys commands taken from yosys2digitaljs (https://github.com/tilk/yosys2digitaljs/blob/1b4afeae61/src/index.js#L1225)
@@ -92,24 +105,27 @@ export const generateYosysRTLCommands = (inputFiles: string[]): string[] => {
         'memory -nomap;',
         'wreduce -memx;',
         'opt -full;',
-        'tee -q -o stats.digitaljs.json stat -json -width *;',
-        'write_json rtl.digitaljs.json;',
+        `tee -q -o ${outputFiles.stats} stat -json -width *;`,
+        `write_json ${outputFiles.rtl};`,
         ''
     ];
 };
 
-export const generateYosysSynthPrepareCommands = (inputFiles: string[]): string[] => {
+export const generateYosysSynthPrepareCommands = (
+    inputFiles: string[],
+    outputFiles: YosysSynthPrepOutputFiles
+): string[] => {
     const verilogFiles = inputFiles.filter((file) => FILE_EXTENSIONS_VERILOG.includes(path.extname(file).substring(1)));
 
     return [
         ...verilogFiles.map((file) => `read_verilog -sv ${file}`),
         'proc;',
         'opt;',
-        'write_json presynth.digitaljs.json;',
+        `write_json ${outputFiles.preSynth};`,
         ''
     ];
 };
 
-export const generateYosysSynthCommands = (): string[] => {
-    return ['read_json presynth.digitaljs.json', 'synth_ecp5 -json ecp5.json;', ''];
+export const generateYosysSynthCommands = (inputFile: string, outputFiles: YosysSynthOutputFiles): string[] => {
+    return [`read_json ${inputFile}`, `synth_ecp5 -json ${outputFiles.netlist};`, ''];
 };
