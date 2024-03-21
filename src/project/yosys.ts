@@ -2,7 +2,7 @@ import path from 'path';
 
 import {FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_VERILOG} from '../util.js';
 
-import type {ProjectConfiguration, YosysOptions} from './configuration.js';
+import type {ProjectConfiguration, TargetConfiguration, YosysOptions} from './configuration.js';
 import {VENDORS} from './devices.js';
 import type {Project} from './project.js';
 import {getCombined, getOptions, getTarget, getTargetFile} from './target.js';
@@ -11,6 +11,7 @@ export interface YosysWorkerOptions {
     inputFiles: string[];
     outputFiles: string[];
     tool: string;
+    target: TargetConfiguration;
     commands: string[];
 }
 
@@ -65,6 +66,7 @@ export const generateYosysWorkerOptions = (
         inputFiles: inputFiles,
         outputFiles: outputFiles,
         tool,
+        target,
         commands: commands
     };
 };
@@ -82,12 +84,14 @@ export const getYosysWorkerOptions = (project: Project, targetId: string): Yosys
     );
 
     const tool = generated.tool;
+    const target = generated.target;
     const commands = getCombined(project.getConfiguration(), targetId, 'yosys', 'commands', generated.commands);
 
     return {
         inputFiles,
         outputFiles,
         tool,
+        target,
         commands
     };
 };
