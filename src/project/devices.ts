@@ -23,7 +23,7 @@ export interface Device {
     packages: string[];
 }
 
-export const VENDORS = {
+export const VENDORS: Record<string, Vendor> = {
     generic: {
         name: 'Generic',
         url: 'https://github.com/YosysHQ/nextpnr/blob/master/docs/generic.md',

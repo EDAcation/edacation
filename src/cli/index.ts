@@ -5,7 +5,7 @@ import type {Argv} from 'yargs';
 import {hideBin} from 'yargs/helpers';
 import yargs from 'yargs/yargs';
 
-import {Project, VENDORS, type Vendor, getNextpnrWorkerOptions, getYosysWorkerOptions} from '../project/index.js';
+import {Project, VENDORS, getNextpnrWorkerOptions, getYosysWorkerOptions} from '../project/index.js';
 import {formatArguments} from '../util.js';
 
 import {executeTool} from './tool.js';
@@ -129,7 +129,7 @@ import {exists} from './util.js';
     console.log(`Loaded target "${target.name}".`);
     console.log();
 
-    const vendor = VENDORS[target.vendor] as Vendor;
+    const vendor = VENDORS[target.vendor];
     const family = vendor.families[target.family];
     const device = family.devices[target.device];
     const packageName = vendor.packages[target.package];
@@ -165,7 +165,11 @@ import {exists} from './util.js';
             await unlink(designFilePath);
         }
     } else if (command === 'nextpnr') {
-        const workerOptions = getNextpnrWorkerOptions(project, target.id);
+        const workerOptions = getNextpnrWorkerOptions(project, target.id, `${family.architecture}.json`, {
+            placedSvg: 'placed.svg',
+            routedSvg: 'routed.svg',
+            routedJson: 'routed.nextpnr.json'
+        });
 
         console.log([workerOptions.tool].concat(formatArguments(workerOptions.arguments)).join('\n'));
         console.log();

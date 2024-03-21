@@ -1,7 +1,7 @@
 import {parseArgs} from 'string-args-parser';
 
-import type {NextpnrOptions, ProjectConfiguration} from './configuration.js';
-import {VENDORS, type Vendor} from './devices.js';
+import type {NextpnrOptions, ProjectConfiguration, TargetConfiguration} from './configuration.js';
+import {VENDORS} from './devices.js';
 import type {Project} from './project.js';
 import {getCombined, getOptions, getTarget, getTargetFile} from './target.js';
 
@@ -9,7 +9,14 @@ export interface NextpnrWorkerOptions {
     inputFiles: string[];
     outputFiles: string[];
     tool: string;
+    target: TargetConfiguration;
     arguments: string[];
+}
+
+interface NextpnrOutputFiles {
+    placedSvg: string;
+    routedSvg: string;
+    routedJson: string;
 }
 
 const DEFAULT_OPTIONS: NextpnrOptions = {
@@ -20,16 +27,18 @@ const DEFAULT_OPTIONS: NextpnrOptions = {
 
 export const generateNextpnrWorkerOptions = (
     configuration: ProjectConfiguration,
-    targetId: string
+    targetId: string,
+    inputFilePath: string,
+    outputFilePaths: NextpnrOutputFiles
 ): NextpnrWorkerOptions => {
     const target = getTarget(configuration, targetId);
     const options = getOptions(configuration, targetId, 'nextpnr', DEFAULT_OPTIONS);
 
-    const vendor = (VENDORS as Record<string, Vendor>)[target.vendor];
+    const vendor = VENDORS[target.vendor];
     const family = vendor.families[target.family];
     const device = family.devices[target.device];
 
-    const inputFiles = [getTargetFile(target, `${family.architecture}.json`)];
+    const inputFiles = [getTargetFile(target, inputFilePath)];
 
     const outputFiles: string[] = [];
 
@@ -79,17 +88,17 @@ export const generateNextpnrWorkerOptions = (
     args.push('--json', inputFiles[0]);
 
     if (options.placedSvg) {
-        const file = getTargetFile(target, 'placed.svg');
+        const file = getTargetFile(target, outputFilePaths.placedSvg);
         outputFiles.push(file);
         args.push('--placed-svg', file);
     }
     if (options.routedSvg) {
-        const file = getTargetFile(target, 'routed.svg');
+        const file = getTargetFile(target, outputFilePaths.routedSvg);
         outputFiles.push(file);
         args.push('--routed-svg', file);
     }
     if (options.routedJson) {
-        const file = getTargetFile(target, 'routed.nextpnr.json');
+        const file = getTargetFile(target, outputFilePaths.routedJson);
         outputFiles.push(file);
         args.push('--write', file);
     }
@@ -98,14 +107,25 @@ export const generateNextpnrWorkerOptions = (
         inputFiles,
         outputFiles,
         tool,
+        target,
         arguments: args
     };
 };
 
 export const parseNextpnrArguments = (args: string[]) => args.flatMap((arg) => parseArgs(arg));
 
-export const getNextpnrWorkerOptions = (project: Project, targetId: string): NextpnrWorkerOptions => {
-    const generated = generateNextpnrWorkerOptions(project.getConfiguration(), targetId);
+export const getNextpnrWorkerOptions = (
+    project: Project,
+    targetId: string,
+    inputFilePath: string,
+    outputFilePaths: NextpnrOutputFiles
+): NextpnrWorkerOptions => {
+    const generated = generateNextpnrWorkerOptions(
+        project.getConfiguration(),
+        targetId,
+        inputFilePath,
+        outputFilePaths
+    );
 
     const inputFiles = getCombined(project.getConfiguration(), targetId, 'nextpnr', 'inputFiles', generated.inputFiles);
     const outputFiles = getCombined(
@@ -117,6 +137,7 @@ export const getNextpnrWorkerOptions = (project: Project, targetId: string): Nex
     );
 
     const tool = generated.tool;
+    const target = generated.target;
     const args = getCombined(
         project.getConfiguration(),
         targetId,
@@ -130,6 +151,7 @@ export const getNextpnrWorkerOptions = (project: Project, targetId: string): Nex
         inputFiles,
         outputFiles,
         tool,
+        target,
         arguments: args
     };
 };

@@ -2,8 +2,8 @@ import path from 'path';
 
 import {FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_VERILOG} from '../util.js';
 
-import type {ProjectConfiguration, YosysOptions} from './configuration.js';
-import {VENDORS, type Vendor} from './devices.js';
+import type {ProjectConfiguration, TargetConfiguration, YosysOptions} from './configuration.js';
+import {VENDORS} from './devices.js';
 import type {Project} from './project.js';
 import {getCombined, getOptions, getTarget, getTargetFile} from './target.js';
 
@@ -11,7 +11,21 @@ export interface YosysWorkerOptions {
     inputFiles: string[];
     outputFiles: string[];
     tool: string;
+    target: TargetConfiguration;
     commands: string[];
+}
+
+interface YosysRTLOutputFiles {
+    stats: string;
+    rtl: string;
+}
+
+interface YosysSynthPrepOutputFiles {
+    preSynth: string;
+}
+
+interface YosysSynthOutputFiles {
+    netlist: string;
 }
 
 const DEFAULT_OPTIONS: YosysOptions = {
@@ -26,7 +40,7 @@ export const generateYosysWorkerOptions = (
     const target = getTarget(configuration, targetId);
     const options = getOptions(configuration, targetId, 'yosys', DEFAULT_OPTIONS);
 
-    const vendor = (VENDORS as Record<string, Vendor>)[target.vendor];
+    const vendor = VENDORS[target.vendor];
     const family = vendor.families[target.family];
 
     const inputFiles = projectInputFiles.filter((inputFile) =>
@@ -52,6 +66,7 @@ export const generateYosysWorkerOptions = (
         inputFiles: inputFiles,
         outputFiles: outputFiles,
         tool,
+        target,
         commands: commands
     };
 };
@@ -69,17 +84,19 @@ export const getYosysWorkerOptions = (project: Project, targetId: string): Yosys
     );
 
     const tool = generated.tool;
+    const target = generated.target;
     const commands = getCombined(project.getConfiguration(), targetId, 'yosys', 'commands', generated.commands);
 
     return {
         inputFiles,
         outputFiles,
         tool,
+        target,
         commands
     };
 };
 
-export const generateYosysRTLCommands = (inputFiles: string[]): string[] => {
+export const generateYosysRTLCommands = (inputFiles: string[], outputFiles: YosysRTLOutputFiles): string[] => {
     const verilogFiles = inputFiles.filter((file) => FILE_EXTENSIONS_VERILOG.includes(path.extname(file).substring(1)));
 
     // Yosys commands taken from yosys2digitaljs (https://github.com/tilk/yosys2digitaljs/blob/1b4afeae61/src/index.js#L1225)
@@ -92,24 +109,27 @@ export const generateYosysRTLCommands = (inputFiles: string[]): string[] => {
         'memory -nomap;',
         'wreduce -memx;',
         'opt -full;',
-        'tee -q -o stats.digitaljs.json stat -json -width *;',
-        'write_json rtl.digitaljs.json;',
+        `tee -q -o ${outputFiles.stats} stat -json -width *;`,
+        `write_json ${outputFiles.rtl};`,
         ''
     ];
 };
 
-export const generateYosysSynthPrepareCommands = (inputFiles: string[]): string[] => {
+export const generateYosysSynthPrepareCommands = (
+    inputFiles: string[],
+    outputFiles: YosysSynthPrepOutputFiles
+): string[] => {
     const verilogFiles = inputFiles.filter((file) => FILE_EXTENSIONS_VERILOG.includes(path.extname(file).substring(1)));
 
     return [
         ...verilogFiles.map((file) => `read_verilog -sv ${file}`),
         'proc;',
         'opt;',
-        'write_json presynth.digitaljs.json;',
+        `write_json ${outputFiles.preSynth};`,
         ''
     ];
 };
 
-export const generateYosysSynthCommands = (): string[] => {
-    return ['read_json presynth.digitaljs.json', 'synth_ecp5 -json ecp5.json;', ''];
+export const generateYosysSynthCommands = (inputFile: string, outputFiles: YosysSynthOutputFiles): string[] => {
+    return [`read_json ${inputFile}`, `synth_ecp5 -json ${outputFiles.netlist};`, ''];
 };
