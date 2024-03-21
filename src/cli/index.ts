@@ -165,7 +165,11 @@ import {exists} from './util.js';
             await unlink(designFilePath);
         }
     } else if (command === 'nextpnr') {
-        const workerOptions = getNextpnrWorkerOptions(project, target.id);
+        const workerOptions = getNextpnrWorkerOptions(project, target.id, `${family.architecture}.json`, {
+            placedSvg: 'placed.svg',
+            routedSvg: 'routed.svg',
+            routedJson: 'routed.nextpnr.json'
+        });
 
         console.log([workerOptions.tool].concat(formatArguments(workerOptions.arguments)).join('\n'));
         console.log();
