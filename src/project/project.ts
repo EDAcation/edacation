@@ -10,7 +10,7 @@ export interface ProjectOutputFileState {
     stale: boolean;
 }
 
-class ProjectOutputFile {
+export class ProjectOutputFile {
     constructor(
         private _project: Project,
         private _path: string,
