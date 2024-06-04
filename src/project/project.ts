@@ -126,8 +126,12 @@ export class Project {
         return this.outputFiles;
     }
 
-    hasOutputFile(filePath: string) {
-        return this.outputFiles.some((file) => file.path === filePath);
+    hasOutputFile(filePath: string): boolean {
+        return this.getOutputFile(filePath) !== null;
+    }
+
+    getOutputFile(filePath: string): ProjectOutputFile | null {
+        return this.outputFiles.find((file) => file.path === filePath) ?? null;
     }
 
     addOutputFiles(files: {path: string; targetId: string}[]) {
