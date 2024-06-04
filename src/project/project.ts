@@ -166,6 +166,12 @@ export class Project {
         this.outputFiles = this.outputFiles.filter((file) => !filePaths.includes(file.path));
     }
 
+    expireOutputFiles() {
+        for (const file of this.outputFiles) {
+            file.stale = true;
+        }
+    }
+
     getConfiguration() {
         return this.configuration;
     }
