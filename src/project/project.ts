@@ -42,6 +42,10 @@ export class ProjectOutputFile {
         return this._stale;
     }
 
+    set stale(isStale: boolean) {
+        this._stale = isStale;
+    }
+
     static serialize(file: ProjectOutputFile): ProjectOutputFileState {
         return {
             path: file.path,
@@ -136,7 +140,14 @@ export class Project {
 
     addOutputFiles(files: {path: string; targetId: string}[]) {
         for (const file of files) {
-            if (this.hasOutputFile(file.path)) continue;
+            const existingOutFile = this.getOutputFile(file.path);
+            if (existingOutFile) {
+                // File already exists, so we don't want to add it again.
+                // But, we should make sure the target ID gets updated and set `stale` to false.
+                existingOutFile.targetId = file.targetId;
+                existingOutFile.stale = false;
+                continue;
+            }
 
             const outputFile = new ProjectOutputFile(this, file.path, file.targetId);
             if (outputFile.target === null) throw new Error(`Invalid target ID: ${file.targetId}`);
