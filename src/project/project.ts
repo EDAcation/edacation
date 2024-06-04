@@ -96,6 +96,9 @@ export class Project {
         } else {
             throw new Error(`Failed to parse project configuration: ${config.error.toString()}`);
         }
+
+        // Trigger a config 'update' to deploy any modifications it might want to make
+        this.updateConfiguration({});
     }
 
     getName() {
