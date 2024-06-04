@@ -172,6 +172,11 @@ export class Project {
             ...this.configuration,
             ...configuration
         };
+
+        // Unset 'lingering' output file target IDs
+        for (const outFile of this.outputFiles) {
+            if (!outFile.target) outFile.targetId = null;
+        }
     }
 
     getTarget(id: string): ProjectTarget | null {
