@@ -143,6 +143,7 @@ export const VENDORS: Record<string, Vendor> = {
             QFN72: '72-pin QFN (10 x 10 mm)',
             qn32: '32-pin QFN (5 x 5 mm)',
             qn84: '84-pin QFNS (7 x 7 mm)',
+            sg48: '48-pin SG48 (7 x 7 mm)',
             swg16tr: '16-ball WLCSP (1.40 x 1.48 mm)',
             tq144: '144-pin TQFP (20 x 20 mm)',
             'tq144:4k': '144-pin TQFP (20 x 20 mm)',
@@ -275,7 +276,7 @@ export const VENDORS: Record<string, Vendor> = {
                     },
                     lp4k: {
                         name: 'LP4K',
-                        device: 'lp8k',
+                        device: 'lp4k',
                         packages: ['cm81:4k', 'cm121:4k', 'cm225:4k']
                     },
                     lp8k: {
@@ -290,13 +291,39 @@ export const VENDORS: Record<string, Vendor> = {
                     },
                     hx4k: {
                         name: 'HX4K',
-                        device: 'hx8k',
+                        device: 'hx4k',
                         packages: ['cb132:4k', 'tq144:4k', 'bg121:4k']
                     },
                     hx8k: {
                         name: 'HX8K',
                         device: 'hx8k',
                         packages: ['cm225', 'cb132', 'bg121', 'ct256']
+                    },
+                    // https://github.com/YosysHQ/nextpnr/blob/b7f91e57a0caf40dd23e3bada52c8595d53eb625/ice40/arch.h#L360
+                    up3k: {
+                        name: 'UP3K',
+                        device: 'up3k',
+                        packages: ['sg48']
+                    },
+                    up5k: {
+                        name: 'UP5K',
+                        device: 'up5k',
+                        packages: ['sg48']
+                    },
+                    u1k: {
+                        name: 'U1K',
+                        device: 'iCE5LP1K',
+                        packages: ['sg48']
+                    },
+                    u2k: {
+                        name: 'iCE5LP2K',
+                        device: 'u2k',
+                        packages: ['sg48']
+                    },
+                    u4k: {
+                        name: 'iCE5LP4K',
+                        device: 'u4k',
+                        packages: ['sg48']
                     }
                 }
             },
