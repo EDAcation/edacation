@@ -9,6 +9,7 @@ import {getCombined, getOptions, getTarget, getTargetFile} from './target.js';
 
 export interface YosysWorkerOptions extends WorkerOptions {
     commands: string[];
+    options: YosysOptions;
 }
 
 const DEFAULT_OPTIONS: YosysOptions = {
@@ -53,7 +54,8 @@ export const generateYosysWorkerOptions = (
         outputFiles,
         tool,
         target,
-        commands
+        commands,
+        options
     };
 };
 
@@ -78,13 +80,15 @@ export const getYosysWorkerOptions = (project: Project, targetId: string): Yosys
     const tool = generated.tool;
     const target = generated.target;
     const commands = getCombined(project.getConfiguration(), targetId, 'yosys', 'commands', generated.commands);
+    const options = generated.options;
 
     return {
         inputFiles,
         outputFiles,
         tool,
         target,
-        commands
+        commands,
+        options
     };
 };
 
