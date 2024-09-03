@@ -3,7 +3,7 @@ import {parseArgs} from 'string-args-parser';
 import type {NextpnrOptions, ProjectConfiguration, WorkerOptions} from './configuration.js';
 import {VENDORS} from './devices.js';
 import type {Project} from './project.js';
-import {getCombined, getOptions, getTarget, getTargetFile} from './target.js';
+import {getCombined, getDefaultOptions, getOptions, getTarget, getTargetFile} from './target.js';
 
 export interface NextpnrWorkerOptions extends WorkerOptions {
     arguments: string[];
@@ -16,12 +16,18 @@ const DEFAULT_OPTIONS: NextpnrOptions = {
     routedJson: true
 };
 
+export const getNextpnrDefaultOptions = (configuration: ProjectConfiguration): NextpnrOptions =>
+    getDefaultOptions(configuration, 'nextpnr', DEFAULT_OPTIONS);
+
+export const getNextpnrOptions = (configuration: ProjectConfiguration, targetId: string): NextpnrOptions =>
+    getOptions(configuration, targetId, 'nextpnr', DEFAULT_OPTIONS);
+
 export const generateNextpnrWorkerOptions = (
     configuration: ProjectConfiguration,
     targetId: string
 ): NextpnrWorkerOptions => {
     const target = getTarget(configuration, targetId);
-    const options = getOptions(configuration, targetId, 'nextpnr', DEFAULT_OPTIONS);
+    const options = getNextpnrOptions(configuration, targetId);
 
     const vendor = VENDORS[target.vendor];
     const family = vendor.families[target.family];
