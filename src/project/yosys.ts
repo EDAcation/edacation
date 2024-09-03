@@ -5,7 +5,7 @@ import {FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_VERILOG} from '../util.js';
 import type {ProjectConfiguration, WorkerOptions, YosysOptions} from './configuration.js';
 import {VENDORS} from './devices.js';
 import type {Project} from './project.js';
-import {getCombined, getOptions, getTarget, getTargetFile} from './target.js';
+import {getCombined, getDefaultOptions, getOptions, getTarget, getTargetFile} from './target.js';
 
 export interface YosysWorkerOptions extends WorkerOptions {
     commands: string[];
@@ -16,13 +16,19 @@ const DEFAULT_OPTIONS: YosysOptions = {
     optimize: true
 };
 
+export const getYosysDefaultOptions = (configuration: ProjectConfiguration): YosysOptions =>
+    getDefaultOptions(configuration, 'yosys', DEFAULT_OPTIONS);
+
+export const getYosysOptions = (configuration: ProjectConfiguration, targetId: string): YosysOptions =>
+    getOptions(configuration, targetId, 'yosys', DEFAULT_OPTIONS);
+
 export const generateYosysWorkerOptions = (
     configuration: ProjectConfiguration,
     projectInputFiles: string[],
     targetId: string
 ): YosysWorkerOptions => {
     const target = getTarget(configuration, targetId);
-    const options = getOptions(configuration, targetId, 'yosys', DEFAULT_OPTIONS);
+    const options = getYosysOptions(configuration, targetId);
 
     const vendor = VENDORS[target.vendor];
     const family = vendor.families[target.family];

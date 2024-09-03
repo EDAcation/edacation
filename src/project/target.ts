@@ -24,21 +24,33 @@ export const getTarget = (configuration: ProjectConfiguration, targetId: string)
 
 export const getTargetFile = (target: TargetConfiguration, file: string) => path.join(target.directory ?? '.', file);
 
+export const getDefaultOptions = <W extends WorkerId>(
+    configuration: ProjectConfiguration,
+    workerId: W,
+    defaultValues: TargetOptionTypes[W]
+): TargetOptionTypes[W] => {
+    const targetDefaults = getTargetDefaults(configuration)[workerId];
+    const defaultConfig = targetDefaults ? targetDefaults.options : undefined;
+
+    return {
+        ...defaultValues,
+        ...defaultConfig
+    };
+};
+
 export const getOptions = <W extends WorkerId>(
     configuration: ProjectConfiguration,
     targetId: string,
     workerId: W,
     defaultValues: TargetOptionTypes[W]
 ): TargetOptionTypes[W] => {
-    const targetDefaults = getTargetDefaults(configuration)[workerId];
-    const target = getTarget(configuration, targetId)[workerId];
+    const defaultOptions = getDefaultOptions(configuration, workerId, defaultValues);
 
-    const defaultConfig = targetDefaults ? targetDefaults.options : undefined;
+    const target = getTarget(configuration, targetId)[workerId];
     const config = target ? target.options : undefined;
 
     return {
-        ...defaultValues,
-        ...defaultConfig,
+        ...defaultOptions,
         ...config
     };
 };
