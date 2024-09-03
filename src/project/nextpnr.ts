@@ -7,6 +7,7 @@ import {getCombined, getOptions, getTarget, getTargetFile} from './target.js';
 
 export interface NextpnrWorkerOptions extends WorkerOptions {
     arguments: string[];
+    options: NextpnrOptions;
 }
 
 const DEFAULT_OPTIONS: NextpnrOptions = {
@@ -101,7 +102,8 @@ export const generateNextpnrWorkerOptions = (
         outputFiles,
         tool,
         target,
-        arguments: args
+        arguments: args,
+        options
     };
 };
 
@@ -135,12 +137,14 @@ export const getNextpnrWorkerOptions = (project: Project, targetId: string): Nex
         generated.arguments,
         parseNextpnrArguments
     );
+    const options = generated.options;
 
     return {
         inputFiles,
         outputFiles,
         tool,
         target,
-        arguments: args
+        arguments: args,
+        options
     };
 };
