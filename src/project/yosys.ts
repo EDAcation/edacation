@@ -3,7 +3,7 @@ import path from 'path';
 import {FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_VERILOG} from '../util.js';
 
 import type {ProjectConfiguration, WorkerOptions, YosysOptions} from './configuration.js';
-import {VENDORS} from './devices.js';
+import {type Architecture, VENDORS} from './devices.js';
 import type {Project} from './project.js';
 import {getCombined, getDefaultOptions, getOptions, getTarget, getTargetFile} from './target.js';
 
@@ -14,6 +14,18 @@ export interface YosysWorkerOptions extends WorkerOptions {
 
 const DEFAULT_OPTIONS: YosysOptions = {
     optimize: true
+};
+
+const getSynthCommands = (arch: Architecture, outFile: string): string[] => {
+    const commands: string[] = [];
+    if (arch === 'generic') {
+        commands.push('synth;');
+        commands.push(`write_json ${outFile};`);
+    } else {
+        commands.push(`synth_${arch} -json ${outFile};`);
+    }
+
+    return commands;
 };
 
 export const getYosysDefaultOptions = (configuration: ProjectConfiguration): YosysOptions =>
@@ -48,12 +60,7 @@ export const generateYosysWorkerOptions = (
         commands.push('opt;');
     }
 
-    if (family.architecture === 'generic') {
-        commands.push('synth;');
-        commands.push(`write_json ${outputFiles[0]};`);
-    } else {
-        commands.push(`synth_${family.architecture} -json ${outputFiles[0]};`);
-    }
+    commands.push(...getSynthCommands(family.architecture, outputFiles[0]));
 
     return {
         inputFiles,
@@ -140,7 +147,7 @@ export const generateYosysSynthCommands = (workerOptions: YosysWorkerOptions): s
 
     return [
         `read_json ${getTargetFile(workerOptions.target, 'presynth.yosys.json')}`,
-        `synth_${family.architecture} -json ${workerOptions.outputFiles[0]};`,
+        ...getSynthCommands(family.architecture, workerOptions.outputFiles[0]),
         '',
         'design -reset',
         '',
