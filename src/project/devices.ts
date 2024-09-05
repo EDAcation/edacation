@@ -113,7 +113,6 @@ export const VENDORS: Record<string, Vendor> = {
             BBG484: 'BBG484 (19 x 19 mm)',
             BFG484: 'BFG484 (23 x 23 mm)',
             bg121: '121-ball caBGA (9 x 9 mm)',
-            'bg121:4k': '121-ball caBGA (9 x 9 mm)',
             caBGA256: '256-ball caBGA (14 x 14 mm)',
             caBGA381: '381-ball caBGA (17 x 17 mm)',
             caBGA400: '400-ball caBGA (17 x 17 mm)',
@@ -122,16 +121,12 @@ export const VENDORS: Record<string, Vendor> = {
             cb81: '81-ball csBGA2 (5 x 5 mm)',
             cb121: '121-ball csBGA (6 x 6 mm)',
             cb132: '132-ball csBGA (8 x 8 mm)',
-            'cb132:4k': '132-ball csBGA (8 x 8 mm)',
             CBG256: 'CBG256 (14 x 14 mm)',
             cm36: '36-ball ucBGA (2.5 x 2.5 mm)',
             cm49: '49-ball ucBGA (3 x 3 mm)',
             cm81: '81-ball ucBGA (4 x 4 mm)',
-            'cm81:4k': '81-ball ucBGA (4 x 4 mm)',
             cm121: '121-ball ucBGA (5 x 5 mm)',
-            'cm121:4k': '121-ball ucBGA (5 x 5 mm)',
             cm225: '225-ball ucBGA (7 x 7 mm)',
-            'cm225:4k': '225-ball ucBGA (7 x 7 mm)',
             ct121: '121-ball caBGA (9 x 9 mm)',
             ct256: '256-ball caBGA (14 x 14 mm)',
             csfBGA121: '121 csfBGA (6 x 6 mm)',
@@ -146,7 +141,6 @@ export const VENDORS: Record<string, Vendor> = {
             sg48: '48-pin SG48 (7 x 7 mm)',
             swg16tr: '16-ball WLCSP (1.40 x 1.48 mm)',
             tq144: '144-pin TQFP (20 x 20 mm)',
-            'tq144:4k': '144-pin TQFP (20 x 20 mm)',
             TQFP100: '100-pin TQFP (14 x 14 mm)',
             TQFP144: '144-pin TQFP (20 x 20 mm)',
             vq100: '100-pin VQFP (14 x 14 mm)'
@@ -277,7 +271,7 @@ export const VENDORS: Record<string, Vendor> = {
                     lp4k: {
                         name: 'LP4K',
                         device: 'lp4k',
-                        packages: ['cm81:4k', 'cm121:4k', 'cm225:4k']
+                        packages: ['cm81', 'cm121', 'cm225']
                     },
                     lp8k: {
                         name: 'LP8K',
@@ -292,7 +286,7 @@ export const VENDORS: Record<string, Vendor> = {
                     hx4k: {
                         name: 'HX4K',
                         device: 'hx4k',
-                        packages: ['cb132:4k', 'tq144:4k', 'bg121:4k']
+                        packages: ['cb132', 'tq144', 'bg121']
                     },
                     hx8k: {
                         name: 'HX8K',

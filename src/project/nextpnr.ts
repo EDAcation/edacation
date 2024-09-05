@@ -64,7 +64,7 @@ export const generateNextpnrWorkerOptions = (
             break;
         }
         case 'nexus': {
-            const packageLookup = {
+            const packageLookup: Record<string, string> = {
                 WLCSP72: 'UWG72',
                 QFN72: 'SG72',
                 csfBGA121: 'MG121',
@@ -73,11 +73,12 @@ export const generateNextpnrWorkerOptions = (
                 caBGA400: 'BG400'
             };
 
-            if (target.package in packageLookup) {
+            const devPackage = packageLookup[target.package];
+            if (!devPackage) {
                 throw new Error(`Package "${target.package}" is currenty not supported.`);
             }
 
-            args.push('--device', `${device.device}-7${packageLookup[target.package]}C`);
+            args.push('--device', `${device.device}-7${devPackage}C`);
             break;
         }
         default: {
