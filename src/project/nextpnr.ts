@@ -11,8 +11,8 @@ export interface NextpnrWorkerOptions extends WorkerOptions {
 }
 
 const DEFAULT_OPTIONS: NextpnrOptions = {
-    placedSvg: true,
-    routedSvg: true,
+    placedSvg: false,
+    routedSvg: false,
     routedJson: true
 };
 
