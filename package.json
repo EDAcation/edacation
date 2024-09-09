@@ -2,7 +2,7 @@
     "name": "edacation",
     "description": "Library and CLI for interacting with Yosys and nextpnr.",
     "license": "MIT",
-    "version": "0.3.8",
+    "version": "0.3.9",
     "contributors": [
         "Danielle Huisman <danielle@huisman.me> (https://github.com/DanielleHuisman)",
         "Mike Almeloo <git@mikealmel.ooo> (https://github.com/DismissedGuy)"
