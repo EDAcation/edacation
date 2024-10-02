@@ -20,9 +20,9 @@ const getSynthCommands = (arch: Architecture, outFile: string): string[] => {
     const commands: string[] = [];
     if (arch === 'generic') {
         commands.push('synth;');
-        commands.push(`write_json ${outFile};`);
+        commands.push(`write_json "${outFile}";`);
     } else {
-        commands.push(`synth_${arch} -json ${outFile};`);
+        commands.push(`synth_${arch} -json "${outFile}";`);
     }
 
     return commands;
@@ -113,7 +113,7 @@ export const generateYosysRTLCommands = (workerOptions: YosysWorkerOptions): str
     // Yosys commands taken from yosys2digitaljs (https://github.com/tilk/yosys2digitaljs/blob/1b4afeae61/src/index.js#L1225)
 
     return [
-        ...verilogFiles.map((file) => `read_verilog -sv ${file}`),
+        ...verilogFiles.map((file) => `read_verilog -sv "${file}"`),
         'hierarchy -auto-top;',
         'proc;',
         'opt;',
@@ -121,7 +121,7 @@ export const generateYosysRTLCommands = (workerOptions: YosysWorkerOptions): str
         'wreduce -memx;',
         'opt -full;',
         `tee -q -o ${getTargetFile(workerOptions.target, 'stats.yosys.json')} stat -json -width *;`,
-        `write_json ${getTargetFile(workerOptions.target, 'rtl.yosys.json')};`,
+        `write_json "${getTargetFile(workerOptions.target, 'rtl.yosys.json')}";`,
         ''
     ];
 };
@@ -132,10 +132,10 @@ export const generateYosysSynthPrepareCommands = (workerOptions: YosysWorkerOpti
     );
 
     return [
-        ...verilogFiles.map((file) => `read_verilog -sv ${file}`),
+        ...verilogFiles.map((file) => `read_verilog -sv "${file}"`),
         'proc;',
         'opt;',
-        `write_json ${getTargetFile(workerOptions.target, 'presynth.yosys.json')};`,
+        `write_json "${getTargetFile(workerOptions.target, 'presynth.yosys.json')}";`,
         ''
     ];
 };
@@ -146,14 +146,14 @@ export const generateYosysSynthCommands = (workerOptions: YosysWorkerOptions): s
     const family = vendor.families[target.family];
 
     return [
-        `read_json ${getTargetFile(workerOptions.target, 'presynth.yosys.json')}`,
+        `read_json "${getTargetFile(workerOptions.target, 'presynth.yosys.json')}"`,
         ...getSynthCommands(family.architecture, workerOptions.outputFiles[0]),
         '',
         'design -reset',
         '',
-        `read_json ${getTargetFile(workerOptions.target, 'presynth.yosys.json')};`,
+        `read_json "${getTargetFile(workerOptions.target, 'presynth.yosys.json')}";`,
         'synth -lut 4;',
-        `write_json ${workerOptions.outputFiles[1]};`,
+        `write_json "${workerOptions.outputFiles[1]}";`,
         ''
     ];
 };
