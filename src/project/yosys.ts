@@ -120,7 +120,7 @@ export const generateYosysRTLCommands = (workerOptions: YosysWorkerOptions): str
         'memory -nomap;',
         'wreduce -memx;',
         'opt -full;',
-        `tee -q -o "${getTargetFile(workerOptions.target, 'stats.yosys.json')}" stat -json -width *;`,
+        `tee -q -o ${getTargetFile(workerOptions.target, 'stats.yosys.json')} stat -json -width *;`,
         `write_json "${getTargetFile(workerOptions.target, 'rtl.yosys.json')}";`,
         ''
     ];
