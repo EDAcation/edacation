@@ -1,6 +1,6 @@
 import path from 'path';
 
-import {FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_VERILOG} from '../util.js';
+import {FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_VERILOG, FILE_EXTENSIONS_VHDL} from '../util.js';
 
 import type {ProjectConfiguration, WorkerOptions, YosysOptions} from './configuration.js';
 import {type Architecture, VENDORS} from './devices.js';
@@ -14,6 +14,35 @@ export interface YosysWorkerOptions extends WorkerOptions {
 
 const DEFAULT_OPTIONS: YosysOptions = {
     optimize: true
+};
+
+const getFileIngestCommands = (inputFiles: string[], options: YosysOptions): string[] => {
+    const commands: string[] = [];
+
+    // Load vhdl files
+    const vhdlFiles = inputFiles.filter((file) => FILE_EXTENSIONS_VHDL.includes(path.extname(file).substring(1)));
+    if (vhdlFiles.length) {
+        if (!options.topLevelModule) {
+            throw new Error('Top level module must be defined when synthesizing VHDL');
+        }
+
+        commands.push('plugin -i ghdl', `ghdl ${vhdlFiles.join(' ')} -e ${options.topLevelModule}`);
+    }
+
+    // Load verilog files
+    const verilogFiles = inputFiles.filter((file) => FILE_EXTENSIONS_VERILOG.includes(path.extname(file).substring(1)));
+    if (verilogFiles.length) {
+        commands.push(...verilogFiles.map((file) => `read_verilog -sv "${file}"`));
+    }
+
+    // (auto-)set top-level module
+    if (options.topLevelModule) {
+        commands.push(`hierarchy -top ${options.topLevelModule}`);
+    } else {
+        commands.push('hierarchy -auto-top');
+    }
+
+    return commands;
 };
 
 const getSynthCommands = (arch: Architecture, outFile: string): string[] => {
@@ -54,7 +83,7 @@ export const generateYosysWorkerOptions = (
     ];
 
     const tool = 'yosys';
-    const commands = [...inputFiles.map((file) => `read_verilog -sv ${file}`), 'proc;'];
+    const commands = [...getFileIngestCommands(inputFiles, options), 'proc;'];
 
     if (options.optimize) {
         commands.push('opt;');
@@ -106,15 +135,10 @@ export const getYosysWorkerOptions = (project: Project, targetId: string): Yosys
 };
 
 export const generateYosysRTLCommands = (workerOptions: YosysWorkerOptions): string[] => {
-    const verilogFiles = workerOptions.inputFiles.filter((file) =>
-        FILE_EXTENSIONS_VERILOG.includes(path.extname(file).substring(1))
-    );
-
     // Yosys commands taken from yosys2digitaljs (https://github.com/tilk/yosys2digitaljs/blob/1b4afeae61/src/index.js#L1225)
 
     return [
-        ...verilogFiles.map((file) => `read_verilog -sv "${file}"`),
-        'hierarchy -auto-top;',
+        ...getFileIngestCommands(workerOptions.inputFiles, workerOptions.options),
         'proc;',
         'opt;',
         'memory -nomap;',
@@ -127,12 +151,8 @@ export const generateYosysRTLCommands = (workerOptions: YosysWorkerOptions): str
 };
 
 export const generateYosysSynthPrepareCommands = (workerOptions: YosysWorkerOptions): string[] => {
-    const verilogFiles = workerOptions.inputFiles.filter((file) =>
-        FILE_EXTENSIONS_VERILOG.includes(path.extname(file).substring(1))
-    );
-
     return [
-        ...verilogFiles.map((file) => `read_verilog -sv "${file}"`),
+        ...getFileIngestCommands(workerOptions.inputFiles, workerOptions.options),
         'proc;',
         'opt;',
         `write_json "${getTargetFile(workerOptions.target, 'presynth.yosys.json')}";`,

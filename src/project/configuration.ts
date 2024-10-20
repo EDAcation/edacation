@@ -34,7 +34,8 @@ const schemaWorkerTarget = z.object({
 });
 
 const schemaYosysOptions = z.object({
-    optimize: z.boolean().optional()
+    optimize: z.boolean().optional(),
+    topLevelModule: z.string().optional()
 });
 
 const schemaYosys = z.object({
