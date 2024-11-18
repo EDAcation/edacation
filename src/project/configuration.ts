@@ -10,7 +10,7 @@ export const DEFAULT_CONFIGURATION: ProjectConfiguration = {
 
             vendor: 'lattice',
             family: 'ecp5',
-            device: 'lfe5u-12',
+            device: 'lfe5u-25',
             package: 'caBGA381'
         }
     ]
