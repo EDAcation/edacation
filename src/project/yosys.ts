@@ -77,10 +77,7 @@ export const generateYosysWorkerOptions = (
     const inputFiles = projectInputFiles.filter((inputFile) =>
         FILE_EXTENSIONS_HDL.includes(path.extname(inputFile).substring(1))
     );
-    const outputFiles = [
-        getTargetFile(target, `${family.architecture}.json`),
-        getTargetFile(target, 'luts.yosys.json')
-    ];
+    const outputFiles = [getTargetFile(target, `${family.architecture}.json`)];
 
     const tool = 'yosys';
     const commands = [...getFileIngestCommands(inputFiles, options), 'proc;'];
@@ -168,12 +165,6 @@ export const generateYosysSynthCommands = (workerOptions: YosysWorkerOptions): s
     return [
         `read_json "${getTargetFile(workerOptions.target, 'presynth.yosys.json')}"`,
         ...getSynthCommands(family.architecture, workerOptions.outputFiles[0]),
-        '',
-        'design -reset',
-        '',
-        `read_json "${getTargetFile(workerOptions.target, 'presynth.yosys.json')}";`,
-        'synth -lut 4;',
-        `write_json "${workerOptions.outputFiles[1]}";`,
         ''
     ];
 };
