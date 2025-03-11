@@ -7,9 +7,8 @@ import type {IVerilogOptions, ProjectConfiguration, WorkerOptions, WorkerStep} f
 import type {Project} from './project.js';
 import {getCombined, getDefaultOptions, getOptions, getTarget, getTargetFile} from './target.js';
 
-export interface IVerilogStep extends WorkerStep {
-    arguments: string[];
-}
+// Empty for now
+export type IVerilogStep = WorkerStep;
 
 export type IVerilogWorkerOptions = WorkerOptions<IVerilogStep, IVerilogOptions>;
 

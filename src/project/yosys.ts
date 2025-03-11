@@ -97,6 +97,7 @@ export const generateYosysWorkerOptions = (
         steps: [
             {
                 tool,
+                arguments: [],
                 commands
             }
         ]
@@ -125,8 +126,9 @@ export const getYosysWorkerOptions = (project: Project, targetId: string): Yosys
     const options = generated.options;
     const steps = generated.steps.map((step) => {
         const tool = step.tool;
+        const args = step.arguments;
         const commands = getCombined(project.getConfiguration(), targetId, 'yosys', 'commands', step.commands);
-        return {tool, commands};
+        return {tool, arguments: args, commands};
     });
 
     return {

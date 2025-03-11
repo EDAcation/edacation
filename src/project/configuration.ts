@@ -134,6 +134,7 @@ export type TargetOptionTypes = {
 
 export interface WorkerStep {
     tool: string;
+    arguments: string[];
 }
 
 export interface WorkerOptions<Step extends WorkerStep, Options> {
