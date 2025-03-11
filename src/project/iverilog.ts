@@ -58,7 +58,7 @@ export const generateIVerilogWorkerOptions = (
 
 export const parseIVerilogArguments = (args: string[]) => args.flatMap((arg) => parseArgs(arg));
 
-export const getYosysWorkerOptions = (
+export const getIVerilogWorkerOptions = (
     project: Project,
     targetId: string,
     testbenchPath: string // TODO: temporary?
