@@ -5,7 +5,7 @@ import {VENDORS} from './devices.js';
 import type {Project} from './project.js';
 import {getCombined, getDefaultOptions, getOptions, getTarget, getTargetFile} from './target.js';
 
-interface NextpnrStep extends WorkerStep {
+export interface NextpnrStep extends WorkerStep {
     arguments: string[];
 }
 

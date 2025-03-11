@@ -7,7 +7,7 @@ import {type Architecture, VENDORS} from './devices.js';
 import type {Project} from './project.js';
 import {getCombined, getDefaultOptions, getOptions, getTarget, getTargetFile} from './target.js';
 
-interface YosysStep extends WorkerStep {
+export interface YosysStep extends WorkerStep {
     commands: string[];
 }
 
