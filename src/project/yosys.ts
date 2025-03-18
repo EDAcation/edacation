@@ -4,7 +4,7 @@ import {FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_VERILOG, FILE_EXTENSIONS_VHDL} from
 
 import type {ProjectConfiguration, WorkerOptions, WorkerStep, YosysOptions} from './configuration.js';
 import {type Architecture, VENDORS} from './devices.js';
-import type {Project} from './project.js';
+import type {Project, ProjectInputFile} from './project.js';
 import {getCombined, getDefaultOptions, getOptions, getTarget, getTargetFile} from './target.js';
 
 export interface YosysStep extends WorkerStep {
@@ -66,7 +66,7 @@ export const getYosysOptions = (configuration: ProjectConfiguration, targetId: s
 
 export const generateYosysWorkerOptions = (
     configuration: ProjectConfiguration,
-    projectInputFiles: string[],
+    projectInputFiles: ProjectInputFile[],
     targetId: string
 ): YosysWorkerOptions => {
     const target = getTarget(configuration, targetId);
@@ -75,9 +75,12 @@ export const generateYosysWorkerOptions = (
     const vendor = VENDORS[target.vendor];
     const family = vendor.families[target.family];
 
-    const inputFiles = projectInputFiles.filter((inputFile) =>
-        FILE_EXTENSIONS_HDL.includes(path.extname(inputFile).substring(1))
-    );
+    const inputFiles = projectInputFiles
+        .filter(
+            (inputFile) =>
+                inputFile.type === 'design' && FILE_EXTENSIONS_HDL.includes(path.extname(inputFile.path).substring(1))
+        )
+        .map((file) => file.path);
     const outputFiles = [getTargetFile(target, `${family.architecture}.json`)];
 
     const tool = 'yosys';
