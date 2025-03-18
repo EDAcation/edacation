@@ -36,7 +36,7 @@ export const generateIVerilogWorkerOptions = (
     const inputFiles = designFiles.concat([testbenchFile]);
 
     const compiledFile = getTargetFile(target, 'simulator.vvp');
-    const outputFiles: string[] = [compiledFile];
+    const outputFiles: string[] = [compiledFile, `${path.parse(testbenchFile).name}.vcd`];
 
     const compileArgs: string[] = [];
     compileArgs.push('-o', compiledFile);
