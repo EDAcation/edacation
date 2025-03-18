@@ -242,7 +242,7 @@ export class Project {
     static serialize(project: Project): ProjectState {
         return {
             name: project.name,
-            inputFiles: project.inputFiles,
+            inputFiles: project.inputFiles.map((file) => ProjectInputFile.serialize(file)),
             outputFiles: project.outputFiles.map((file) => ProjectOutputFile.serialize(file)),
             configuration: project.configuration
         };
