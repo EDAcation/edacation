@@ -62,8 +62,9 @@ const schemaNextpnrTarget = z.object({
     options: schemaNextpnrOptions.optional()
 });
 
-// Empty (for now) but consistent with yosys / nextpnr
-const schemaIVerilogOptions = z.object({});
+const schemaIVerilogOptions = z.object({
+    testbenchFile: z.string().optional()
+});
 
 const schemaIVerilog = z.object({
     arguments: schemaValueList.optional(),

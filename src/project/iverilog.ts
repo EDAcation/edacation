@@ -12,7 +12,9 @@ export type IVerilogStep = WorkerStep;
 
 export type IVerilogWorkerOptions = WorkerOptions<IVerilogStep, IVerilogOptions>;
 
-const DEFAULT_OPTIONS: IVerilogOptions = {};
+const DEFAULT_OPTIONS: IVerilogOptions = {
+    testbenchFile: undefined
+};
 
 export const getIVerilogDefaultOptions = (configuration: ProjectConfiguration): IVerilogOptions =>
     getDefaultOptions(configuration, 'iverilog', DEFAULT_OPTIONS);
@@ -28,11 +30,19 @@ export const generateIVerilogWorkerOptions = (
     const target = getTarget(configuration, targetId);
     const options = getIVerilogOptions(configuration, targetId);
 
-    const files = projectInputFiles.filter((inputFile) =>
-        FILE_EXTENSIONS_VERILOG.includes(path.extname(inputFile.path).substring(1))
+    const files = projectInputFiles.filter(
+        (inputFile) =>
+            inputFile.type === 'design' && FILE_EXTENSIONS_VERILOG.includes(path.extname(inputFile.path).substring(1))
     );
-    const designFiles = files.filter((file) => file.type === 'design').map((file) => file.path);
-    const testbenchFile = files.filter((file) => file.type === 'testbench').map((file) => file.path)[0]; // TODO: be smarter than using the first file
+    const designFiles = files.map((file) => file.path);
+    let testbenchFile = options.testbenchFile;
+    if (!testbenchFile) {
+        // Auto-select from testbench input files
+        const allTestbenches = projectInputFiles.filter((file) => file.type === 'testbench');
+        if (allTestbenches.length === 0)
+            throw new Error('Could not auto-select testbench file: no input files marked as such');
+        testbenchFile = allTestbenches[0].path;
+    }
     const inputFiles = designFiles.concat([testbenchFile]);
 
     const compiledFile = getTargetFile(target, 'simulator.vvp');
