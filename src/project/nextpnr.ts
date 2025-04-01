@@ -1,14 +1,14 @@
 import {parseArgs} from 'string-args-parser';
 
-import type {NextpnrOptions, ProjectConfiguration, WorkerOptions} from './configuration.js';
+import type {NextpnrOptions, ProjectConfiguration, WorkerOptions, WorkerStep} from './configuration.js';
 import {VENDORS} from './devices.js';
 import type {Project} from './project.js';
 import {getCombined, getDefaultOptions, getOptions, getTarget, getTargetFile} from './target.js';
 
-export interface NextpnrWorkerOptions extends WorkerOptions {
-    arguments: string[];
-    options: NextpnrOptions;
-}
+// Empty for now
+export type NextpnrStep = WorkerStep;
+
+export type NextpnrWorkerOptions = WorkerOptions<NextpnrStep, NextpnrOptions>;
 
 const DEFAULT_OPTIONS: NextpnrOptions = {
     placedSvg: false,
@@ -107,10 +107,14 @@ export const generateNextpnrWorkerOptions = (
     return {
         inputFiles,
         outputFiles,
-        tool,
         target,
-        arguments: args,
-        options
+        options,
+        steps: [
+            {
+                tool,
+                arguments: args
+            }
+        ]
     };
 };
 
@@ -134,24 +138,26 @@ export const getNextpnrWorkerOptions = (project: Project, targetId: string): Nex
         generated.outputFiles
     ).filter((f) => !!f);
 
-    const tool = generated.tool;
     const target = generated.target;
-    const args = getCombined(
-        project.getConfiguration(),
-        targetId,
-        'nextpnr',
-        'arguments',
-        generated.arguments,
-        parseNextpnrArguments
-    );
     const options = generated.options;
+    const steps = generated.steps.map((step) => {
+        const tool = step.tool;
+        const args = getCombined(
+            project.getConfiguration(),
+            targetId,
+            'nextpnr',
+            'arguments',
+            step.arguments,
+            parseNextpnrArguments
+        );
+        return {tool, arguments: args};
+    });
 
     return {
         inputFiles,
         outputFiles,
-        tool,
         target,
-        arguments: args,
-        options
+        options,
+        steps
     };
 };

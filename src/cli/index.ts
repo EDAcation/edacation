@@ -153,25 +153,29 @@ import {exists} from './util.js';
     if (command === 'yosys') {
         const workerOptions = getYosysWorkerOptions(project, target.id);
 
-        console.log([workerOptions.tool, ''].concat(workerOptions.commands).join('\n'));
-        console.log();
+        for (const step of workerOptions.steps) {
+            console.log([step.tool, ''].concat(step.commands).join('\n'));
+            console.log();
 
-        if (shouldExecute) {
-            const designFilePath = path.join(cwd, 'design.ys');
-            await writeFile(designFilePath, workerOptions.commands.concat(['']).join('\n'), {encoding: 'utf-8'});
+            if (shouldExecute) {
+                const designFilePath = path.join(cwd, 'design.ys');
+                await writeFile(designFilePath, step.commands.concat(['']).join('\n'), {encoding: 'utf-8'});
 
-            await executeTool(workerOptions.tool, ['design.ys'], cwd);
+                await executeTool(step.tool, ['design.ys'], cwd);
 
-            await unlink(designFilePath);
+                await unlink(designFilePath);
+            }
         }
     } else if (command === 'nextpnr') {
         const workerOptions = getNextpnrWorkerOptions(project, target.id);
 
-        console.log([workerOptions.tool].concat(formatArguments(workerOptions.arguments)).join('\n'));
-        console.log();
+        for (const step of workerOptions.steps) {
+            console.log([step.tool].concat(formatArguments(step.arguments)).join('\n'));
+            console.log();
 
-        if (shouldExecute) {
-            await executeTool(workerOptions.tool, workerOptions.arguments, cwd);
+            if (shouldExecute) {
+                await executeTool(step.tool, step.arguments, cwd);
+            }
         }
     } else {
         console.error(`Unknown command "${command}".`);

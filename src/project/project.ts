@@ -4,6 +4,47 @@ import {DEFAULT_CONFIGURATION, type ProjectConfiguration, schemaProjectConfigura
 
 type ProjectTarget = ProjectConfiguration['targets'][number];
 
+export interface ProjectInputFileState {
+    path: string;
+    type: 'design' | 'testbench';
+}
+
+export class ProjectInputFile {
+    constructor(
+        private _path: ProjectInputFileState['path'],
+        private _type: ProjectInputFileState['type']
+    ) {}
+
+    get path(): ProjectInputFileState['path'] {
+        return this._path;
+    }
+
+    get type(): ProjectInputFileState['type'] {
+        return this._type;
+    }
+
+    set type(type: ProjectInputFileState['type']) {
+        this._type = type;
+    }
+
+    static serialize(file: ProjectInputFile): ProjectInputFileState {
+        return {
+            path: file.path,
+            type: file.type
+        };
+    }
+
+    static deserialize(data: ProjectInputFileState | string, ..._args: unknown[]): ProjectInputFile {
+        // Older versions of this module (<= 0.3.9) stored input files as an array of paths instead,
+        // so we need to migrate if data is a string (single output file).
+        if (typeof data === 'string') {
+            data = {path: data, type: 'design'};
+        }
+
+        return new ProjectInputFile(data.path, data.type);
+    }
+}
+
 export interface ProjectOutputFileState {
     path: string;
     targetId: string | null;
@@ -13,20 +54,20 @@ export interface ProjectOutputFileState {
 export class ProjectOutputFile {
     constructor(
         private _project: Project,
-        private _path: string,
-        private _targetId: string | null = null,
-        private _stale: boolean = false
+        private _path: ProjectOutputFileState['path'],
+        private _targetId: ProjectOutputFileState['targetId'] = null,
+        private _stale: ProjectOutputFileState['stale'] = false
     ) {}
 
-    get path(): string {
+    get path(): ProjectOutputFileState['path'] {
         return this._path;
     }
 
-    get targetId(): string | null {
+    get targetId(): ProjectOutputFileState['targetId'] {
         return this._targetId;
     }
 
-    set targetId(id: string | null) {
+    set targetId(id: ProjectOutputFileState['targetId']) {
         if (id !== null && this._project.getTarget(id) === null) {
             throw new Error(`Invalid target id: ${id}`);
         }
@@ -38,11 +79,11 @@ export class ProjectOutputFile {
         return this._project.getTarget(this._targetId);
     }
 
-    get stale(): boolean {
+    get stale(): ProjectOutputFileState['stale'] {
         return this._stale;
     }
 
-    set stale(isStale: boolean) {
+    set stale(isStale: ProjectOutputFileState['stale']) {
         this._stale = isStale;
     }
 
@@ -55,7 +96,7 @@ export class ProjectOutputFile {
     }
 
     static deserialize(project: Project, data: ProjectOutputFileState | string, ..._args: unknown[]) {
-        // Older versions of this module (<= 0.3.6) stored output files as an array of paths instead,
+        // Older versions of this module (<= 0.3.12) stored output files as an array of paths instead,
         // so we need to migrate if data is a string (single output file).
         if (typeof data === 'string') {
             data = {path: data, targetId: null, stale: false};
@@ -67,25 +108,25 @@ export class ProjectOutputFile {
 
 export interface ProjectState {
     name: string;
-    inputFiles: string[];
+    inputFiles: ProjectInputFileState[] | string[];
     outputFiles: ProjectOutputFileState[] | string[];
     configuration: ProjectConfiguration;
 }
 
 export class Project {
     private name: string;
-    private inputFiles: string[];
+    private inputFiles: ProjectInputFile[];
     private outputFiles: ProjectOutputFile[];
     private configuration: ProjectConfiguration;
 
     constructor(
         name: string,
-        inputFiles: string[] = [],
+        inputFiles: ProjectInputFileState[] | string[] = [],
         outputFiles: ProjectOutputFileState[] | string[] = [],
         configuration: ProjectConfiguration = DEFAULT_CONFIGURATION
     ) {
         this.name = name;
-        this.inputFiles = inputFiles;
+        this.inputFiles = inputFiles.map((file: ProjectInputFileState | string) => ProjectInputFile.deserialize(file));
         this.outputFiles = outputFiles.map((file: ProjectOutputFileState | string) =>
             ProjectOutputFile.deserialize(this, file)
         );
@@ -110,13 +151,18 @@ export class Project {
     }
 
     hasInputFile(filePath: string) {
-        return this.inputFiles.some((file) => file === filePath);
+        return this.getInputFile(filePath) !== null;
     }
 
-    addInputFiles(filePaths: string[]) {
-        for (const filePath of filePaths) {
-            if (!this.hasInputFile(filePath)) {
-                this.inputFiles.push(filePath);
+    getInputFile(filePath: string): ProjectInputFile | null {
+        return this.inputFiles.find((file) => file.path === filePath) ?? null;
+    }
+
+    addInputFiles(files: {path: string; type?: ProjectInputFileState['type']}[]) {
+        for (const file of files) {
+            if (!this.hasInputFile(file.path)) {
+                const inputFile = new ProjectInputFile(file.path, file.type ?? 'design');
+                this.inputFiles.push(inputFile);
             }
         }
 
@@ -126,7 +172,7 @@ export class Project {
     }
 
     removeInputFiles(filePaths: string[]) {
-        this.inputFiles = this.inputFiles.filter((file) => !filePaths.includes(file));
+        this.inputFiles = this.inputFiles.filter((file) => !filePaths.includes(file.path));
     }
 
     getOutputFiles() {
@@ -196,7 +242,7 @@ export class Project {
     static serialize(project: Project): ProjectState {
         return {
             name: project.name,
-            inputFiles: project.inputFiles,
+            inputFiles: project.inputFiles.map((file) => ProjectInputFile.serialize(file)),
             outputFiles: project.outputFiles.map((file) => ProjectOutputFile.serialize(file)),
             configuration: project.configuration
         };
@@ -204,7 +250,7 @@ export class Project {
 
     static deserialize(data: ProjectState, ..._args: unknown[]): Project {
         const name: string = data.name;
-        const inputFiles: string[] = data.inputFiles ?? [];
+        const inputFiles: ProjectInputFileState[] | string[] = data.inputFiles ?? [];
         const outputFiles: ProjectOutputFileState[] | string[] = data.outputFiles ?? [];
         const configuration: ProjectConfiguration = data.configuration ?? {};
 

@@ -62,14 +62,30 @@ const schemaNextpnrTarget = z.object({
     options: schemaNextpnrOptions.optional()
 });
 
+const schemaIVerilogOptions = z.object({
+    testbenchFile: z.string().optional()
+});
+
+const schemaIVerilog = z.object({
+    arguments: schemaValueList.optional(),
+    options: schemaIVerilogOptions.optional()
+});
+const schemaIVerilogTarget = z.object({
+    arguments: schemaValueListTarget.optional(),
+    options: schemaIVerilogOptions.optional()
+});
+
 const schemaCombinedYosys = schemaWorker.merge(schemaYosys);
 const schemaCombinedYosysTarget = schemaWorkerTarget.merge(schemaYosysTarget);
 const schemaCombinedNextpnr = schemaWorker.merge(schemaNextpnr);
 const schemaCombinedNextpnrTarget = schemaWorkerTarget.merge(schemaNextpnrTarget);
+const schemaCombinedIVerilog = schemaWorker.merge(schemaIVerilog);
+const schemaCombinedIVerilogTarget = schemaWorkerTarget.merge(schemaIVerilogTarget);
 
 const schemaTargetDefaults = z.object({
     yosys: schemaCombinedYosys.optional(),
-    nextpnr: schemaCombinedNextpnr.optional()
+    nextpnr: schemaCombinedNextpnr.optional(),
+    iverilog: schemaCombinedIVerilog.optional()
 });
 
 const schemaTarget = z.object({
@@ -84,7 +100,8 @@ const schemaTarget = z.object({
     directory: z.string().optional(),
 
     yosys: schemaCombinedYosysTarget.optional(),
-    nextpnr: schemaCombinedNextpnrTarget.optional()
+    nextpnr: schemaCombinedNextpnrTarget.optional(),
+    iverilog: schemaCombinedIVerilogTarget.optional()
 });
 
 export const schemaProjectConfiguration = z.object({
@@ -97,7 +114,7 @@ export type TargetDefaultsConfiguration = NonNullable<ProjectConfiguration['defa
 export type TargetConfiguration = ArrayElement<ProjectConfiguration['targets']>;
 export type ValueListConfiguration = z.infer<typeof schemaValueList>;
 export type ValueListConfigurationTarget = z.infer<typeof schemaValueListTarget>;
-export type WorkerId = 'yosys' | 'nextpnr';
+export type WorkerId = 'yosys' | 'nextpnr' | 'iverilog';
 export type WorkerConfiguration = z.infer<typeof schemaWorker>;
 export type WorkerTargetConfiguration = z.infer<typeof schemaWorkerTarget>;
 export type YosysOptions = z.infer<typeof schemaYosysOptions>;
@@ -106,15 +123,25 @@ export type YosysTargetConfiguration = z.infer<typeof schemaYosysTarget>;
 export type NextpnrOptions = z.infer<typeof schemaNextpnrOptions>;
 export type NextpnrConfiguration = z.infer<typeof schemaNextpnr>;
 export type NextpnrTargetConfiguration = z.infer<typeof schemaNextpnrTarget>;
+export type IVerilogOptions = z.infer<typeof schemaIVerilogOptions>;
+export type IVerilogConfiguration = z.infer<typeof schemaIVerilog>;
+export type IVerilogTargetConfiguration = z.infer<typeof schemaIVerilogTarget>;
 
 export type TargetOptionTypes = {
     yosys: YosysOptions;
     nextpnr: NextpnrOptions;
+    iverilog: IVerilogOptions;
 };
 
-export interface WorkerOptions {
+export interface WorkerStep {
+    tool: string;
+    arguments: string[];
+}
+
+export interface WorkerOptions<Step extends WorkerStep, Options> {
     inputFiles: string[];
     outputFiles: string[];
-    tool: string;
     target: TargetConfiguration;
+    options: Options;
+    steps: Step[];
 }

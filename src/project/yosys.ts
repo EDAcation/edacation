@@ -2,15 +2,16 @@ import path from 'path';
 
 import {FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_VERILOG, FILE_EXTENSIONS_VHDL} from '../util.js';
 
-import type {ProjectConfiguration, WorkerOptions, YosysOptions} from './configuration.js';
+import type {ProjectConfiguration, WorkerOptions, WorkerStep, YosysOptions} from './configuration.js';
 import {type Architecture, VENDORS} from './devices.js';
-import type {Project} from './project.js';
+import type {Project, ProjectInputFile} from './project.js';
 import {getCombined, getDefaultOptions, getOptions, getTarget, getTargetFile} from './target.js';
 
-export interface YosysWorkerOptions extends WorkerOptions {
+export interface YosysStep extends WorkerStep {
     commands: string[];
-    options: YosysOptions;
 }
+
+export type YosysWorkerOptions = WorkerOptions<YosysStep, YosysOptions>;
 
 const DEFAULT_OPTIONS: YosysOptions = {
     optimize: true
@@ -65,7 +66,7 @@ export const getYosysOptions = (configuration: ProjectConfiguration, targetId: s
 
 export const generateYosysWorkerOptions = (
     configuration: ProjectConfiguration,
-    projectInputFiles: string[],
+    projectInputFiles: ProjectInputFile[],
     targetId: string
 ): YosysWorkerOptions => {
     const target = getTarget(configuration, targetId);
@@ -74,9 +75,12 @@ export const generateYosysWorkerOptions = (
     const vendor = VENDORS[target.vendor];
     const family = vendor.families[target.family];
 
-    const inputFiles = projectInputFiles.filter((inputFile) =>
-        FILE_EXTENSIONS_HDL.includes(path.extname(inputFile).substring(1))
-    );
+    const inputFiles = projectInputFiles
+        .filter(
+            (inputFile) =>
+                inputFile.type === 'design' && FILE_EXTENSIONS_HDL.includes(path.extname(inputFile.path).substring(1))
+        )
+        .map((file) => file.path);
     const outputFiles = [getTargetFile(target, `${family.architecture}.json`)];
 
     const tool = 'yosys';
@@ -91,10 +95,15 @@ export const generateYosysWorkerOptions = (
     return {
         inputFiles,
         outputFiles,
-        tool,
         target,
-        commands,
-        options
+        options,
+        steps: [
+            {
+                tool,
+                arguments: [],
+                commands
+            }
+        ]
     };
 };
 
@@ -116,18 +125,21 @@ export const getYosysWorkerOptions = (project: Project, targetId: string): Yosys
         generated.outputFiles
     ).filter((f) => !!f);
 
-    const tool = generated.tool;
     const target = generated.target;
-    const commands = getCombined(project.getConfiguration(), targetId, 'yosys', 'commands', generated.commands);
     const options = generated.options;
+    const steps = generated.steps.map((step) => {
+        const tool = step.tool;
+        const args = step.arguments;
+        const commands = getCombined(project.getConfiguration(), targetId, 'yosys', 'commands', step.commands);
+        return {tool, arguments: args, commands};
+    });
 
     return {
         inputFiles,
         outputFiles,
-        tool,
         target,
-        commands,
-        options
+        options,
+        steps
     };
 };
 
