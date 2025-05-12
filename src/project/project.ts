@@ -148,7 +148,7 @@ export class Project {
         }
 
         // Trigger a config 'update' to deploy any modifications it might want to make
-        this.updateConfiguration({});
+        this.updateConfiguration({}, false);
     }
 
     getName() {
@@ -241,7 +241,7 @@ export class Project {
         return this.configuration;
     }
 
-    updateConfiguration(configuration: Partial<ProjectConfiguration>) {
+    updateConfiguration(configuration: Partial<ProjectConfiguration>, doTriggerEvent = true) {
         this.configuration = {
             ...this.configuration,
             ...configuration
@@ -252,7 +252,7 @@ export class Project {
             if (!outFile.target) outFile.targetId = null;
         }
 
-        if (this.events?.onConfigurationChange) this.events.onConfigurationChange(this.configuration);
+        if (doTriggerEvent && this.events?.onConfigurationChange) this.events.onConfigurationChange(this.configuration);
     }
 
     getTarget(id: string): ProjectTarget | null {
