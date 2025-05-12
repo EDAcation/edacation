@@ -113,23 +113,32 @@ export interface ProjectState {
     configuration: ProjectConfiguration;
 }
 
+interface ProjectEvents {
+    onInputFileChange?: (inputFiles: ProjectInputFile[]) => void;
+    onOutputFileChange?: (outputFiles: ProjectOutputFile[]) => void;
+    onConfigurationChange?: (configuration: ProjectConfiguration) => void;
+}
+
 export class Project {
     private name: string;
     private inputFiles: ProjectInputFile[];
     private outputFiles: ProjectOutputFile[];
     private configuration: ProjectConfiguration;
+    private events: ProjectEvents | null;
 
     constructor(
         name: string,
         inputFiles: ProjectInputFileState[] | string[] = [],
         outputFiles: ProjectOutputFileState[] | string[] = [],
-        configuration: ProjectConfiguration = DEFAULT_CONFIGURATION
+        configuration: ProjectConfiguration = DEFAULT_CONFIGURATION,
+        events: ProjectEvents = {}
     ) {
         this.name = name;
         this.inputFiles = inputFiles.map((file: ProjectInputFileState | string) => ProjectInputFile.deserialize(file));
         this.outputFiles = outputFiles.map((file: ProjectOutputFileState | string) =>
             ProjectOutputFile.deserialize(this, file)
         );
+        this.events = events;
 
         const config = schemaProjectConfiguration.safeParse(configuration);
         if (config.success) {
@@ -169,10 +178,14 @@ export class Project {
         this.inputFiles.sort((a, b) => {
             return a < b ? -1 : 1;
         });
+
+        if (this.events?.onInputFileChange) this.events.onInputFileChange(this.inputFiles);
     }
 
     removeInputFiles(filePaths: string[]) {
         this.inputFiles = this.inputFiles.filter((file) => !filePaths.includes(file.path));
+
+        if (this.events?.onInputFileChange) this.events.onInputFileChange(this.inputFiles);
     }
 
     getOutputFiles() {
@@ -206,16 +219,22 @@ export class Project {
         this.outputFiles.sort((a, b) => {
             return a < b ? -1 : 1;
         });
+
+        if (this.events?.onOutputFileChange) this.events.onOutputFileChange(this.outputFiles);
     }
 
     removeOutputFiles(filePaths: string[]) {
         this.outputFiles = this.outputFiles.filter((file) => !filePaths.includes(file.path));
+
+        if (this.events?.onOutputFileChange) this.events.onOutputFileChange(this.outputFiles);
     }
 
     expireOutputFiles() {
         for (const file of this.outputFiles) {
             file.stale = true;
         }
+
+        if (this.events?.onOutputFileChange) this.events.onOutputFileChange(this.outputFiles);
     }
 
     getConfiguration() {
@@ -232,6 +251,8 @@ export class Project {
         for (const outFile of this.outputFiles) {
             if (!outFile.target) outFile.targetId = null;
         }
+
+        if (this.events?.onConfigurationChange) this.events.onConfigurationChange(this.configuration);
     }
 
     getTarget(id: string): ProjectTarget | null {
