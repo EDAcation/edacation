@@ -124,7 +124,7 @@ export class Project {
     private inputFiles: ProjectInputFile[];
     private outputFiles: ProjectOutputFile[];
     private configuration: ProjectConfiguration;
-    private events: ProjectEvents | null;
+    private events: ProjectEvents;
 
     constructor(
         name: string,
@@ -179,13 +179,13 @@ export class Project {
             return a < b ? -1 : 1;
         });
 
-        if (this.events?.onInputFileChange) this.events.onInputFileChange(this.inputFiles);
+        this.triggerEvent('onInputFileChange');
     }
 
     removeInputFiles(filePaths: string[]) {
         this.inputFiles = this.inputFiles.filter((file) => !filePaths.includes(file.path));
 
-        if (this.events?.onInputFileChange) this.events.onInputFileChange(this.inputFiles);
+        this.triggerEvent('onInputFileChange');
     }
 
     getOutputFiles() {
@@ -220,21 +220,59 @@ export class Project {
             return a < b ? -1 : 1;
         });
 
-        if (this.events?.onOutputFileChange) this.events.onOutputFileChange(this.outputFiles);
+        this.triggerEvent('onOutputFileChange');
     }
 
     removeOutputFiles(filePaths: string[]) {
         this.outputFiles = this.outputFiles.filter((file) => !filePaths.includes(file.path));
 
-        if (this.events?.onOutputFileChange) this.events.onOutputFileChange(this.outputFiles);
+        this.triggerEvent('onOutputFileChange');
     }
 
     expireOutputFiles() {
+        if (!this.outputFiles.length) return;
+
         for (const file of this.outputFiles) {
             file.stale = true;
         }
 
-        if (this.events?.onOutputFileChange) this.events.onOutputFileChange(this.outputFiles);
+        this.triggerEvent('onOutputFileChange');
+    }
+
+    setTopLevelModule(targetId: string, module: string) {
+        const target = this.getTarget(targetId);
+        if (!target) throw new Error(`Target "${targetId}" does not exist!`);
+
+        // Ensure the config tree exists
+        // We don't care about setting missing defaults, as this is target-level configuration,
+        // so any missing properties will fallback to project-level config.
+        if (!target.yosys) target.yosys = {};
+        if (!target.yosys.options) target.yosys.options = {};
+
+        target.yosys.options.topLevelModule = module;
+
+        this.triggerEvent('onConfigurationChange');
+    }
+
+    setTestbenchPath(targetId: string, testbenchPath?: string) {
+        const testbenchFiles = this.getInputFiles()
+            .filter((file) => file.type === 'testbench')
+            .map((file) => file.path);
+        if (testbenchPath && !testbenchFiles.includes(testbenchPath))
+            throw new Error(`Testbench ${testbenchPath} is not marked as such!`);
+
+        const target = this.getTarget(targetId);
+        if (!target) throw new Error(`Target "${targetId}" does not exist!`);
+
+        // Ensure the config tree exists
+        // We don't care about setting missing defaults, as this is target-level configuration,
+        // so any missing properties will fallback to project-level config.
+        if (!target.iverilog) target.iverilog = {};
+        if (!target.iverilog.options) target.iverilog.options = {};
+
+        target.iverilog.options.testbenchFile = testbenchPath;
+
+        this.triggerEvent('onConfigurationChange');
     }
 
     getConfiguration() {
@@ -252,12 +290,24 @@ export class Project {
             if (!outFile.target) outFile.targetId = null;
         }
 
-        if (doTriggerEvent && this.events?.onConfigurationChange) this.events.onConfigurationChange(this.configuration);
+        if (doTriggerEvent) this.triggerEvent('onConfigurationChange');
     }
 
     getTarget(id: string): ProjectTarget | null {
         const targets = this.configuration.targets;
         return targets.find((target) => target.id === id) ?? null;
+    }
+
+    protected triggerEvent(event: keyof ProjectEvents) {
+        if (this.events[event] === undefined) return;
+
+        if (event === 'onInputFileChange') {
+            this.events[event](this.inputFiles);
+        } else if (event === 'onOutputFileChange') {
+            this.events[event](this.outputFiles);
+        } else if (event === 'onConfigurationChange') {
+            this.events[event](this.configuration);
+        }
     }
 
     static serialize(project: Project): ProjectState {
