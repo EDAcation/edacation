@@ -283,6 +283,18 @@ export class Project {
         this.triggerEvent('onConfigurationChange');
     }
 
+    setInputFileType(filePath: string, type: ProjectInputFile['type']) {
+        const file = this.getInputFile(filePath);
+        if (!file) {
+            console.warn(`Tried to set file type of missing input file: ${filePath}`);
+            return;
+        }
+
+        file.type = type;
+
+        this.triggerEvent('onInputFileChange');
+    }
+
     getTarget(id: string): ProjectTarget | null {
         const targets = this.configuration.targets;
         return targets.find((target) => target.id === id) ?? null;
