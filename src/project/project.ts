@@ -27,10 +27,10 @@ export class ProjectInputFile {
         this._type = type;
     }
 
-    static serialize(file: ProjectInputFile): ProjectInputFileState {
+    serialize(): ProjectInputFileState {
         return {
-            path: file.path,
-            type: file.type
+            path: this.path,
+            type: this.type
         };
     }
 
@@ -42,6 +42,10 @@ export class ProjectInputFile {
         }
 
         return new ProjectInputFile(data.path, data.type);
+    }
+
+    copy(): ProjectInputFile {
+        return ProjectInputFile.deserialize(this.serialize());
     }
 }
 
@@ -87,11 +91,11 @@ export class ProjectOutputFile {
         this._stale = isStale;
     }
 
-    static serialize(file: ProjectOutputFile): ProjectOutputFileState {
+    serialize(): ProjectOutputFileState {
         return {
-            path: file.path,
-            targetId: file.targetId,
-            stale: file.stale
+            path: this.path,
+            targetId: this.targetId,
+            stale: this.stale
         };
     }
 
@@ -103,6 +107,10 @@ export class ProjectOutputFile {
         }
 
         return new ProjectOutputFile(project, data.path, data.targetId, data.stale);
+    }
+
+    copy(project: Project): ProjectOutputFile {
+        return ProjectOutputFile.deserialize(project, this.serialize());
     }
 }
 
@@ -275,6 +283,11 @@ export class Project {
         this.triggerEvent('onConfigurationChange');
     }
 
+    getTarget(id: string): ProjectTarget | null {
+        const targets = this.configuration.targets;
+        return targets.find((target) => target.id === id) ?? null;
+    }
+
     getConfiguration() {
         return this.configuration;
     }
@@ -293,9 +306,16 @@ export class Project {
         if (doTriggerEvent) this.triggerEvent('onConfigurationChange');
     }
 
-    getTarget(id: string): ProjectTarget | null {
-        const targets = this.configuration.targets;
-        return targets.find((target) => target.id === id) ?? null;
+    protected importFromProject(other: Project, doTriggerEvent = true) {
+        this.inputFiles = other.getInputFiles().map((file) => file.copy());
+        this.outputFiles = other.getOutputFiles().map((file) => file.copy(this));
+        this.configuration = structuredClone(other.getConfiguration());
+
+        if (doTriggerEvent) {
+            this.triggerEvent('onInputFileChange');
+            this.triggerEvent('onOutputFileChange');
+            this.triggerEvent('onConfigurationChange');
+        }
     }
 
     protected triggerEvent(event: keyof ProjectEvents) {
@@ -313,8 +333,8 @@ export class Project {
     static serialize(project: Project): ProjectState {
         return {
             name: project.name,
-            inputFiles: project.inputFiles.map((file) => ProjectInputFile.serialize(file)),
-            outputFiles: project.outputFiles.map((file) => ProjectOutputFile.serialize(file)),
+            inputFiles: project.inputFiles.map((file) => file.serialize()),
+            outputFiles: project.outputFiles.map((file) => file.serialize()),
             configuration: project.configuration
         };
     }
