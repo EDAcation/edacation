@@ -4,6 +4,10 @@ import {DEFAULT_CONFIGURATION, type ProjectConfiguration, schemaProjectConfigura
 
 type ProjectTarget = ProjectConfiguration['targets'][number];
 
+export type ProjectEvent = 'inputFiles' | 'outputFiles' | 'configuration';
+
+type EventCallback = (project: Project, events: ProjectEvent[]) => void;
+
 export interface ProjectInputFileState {
     path: string;
     type: 'design' | 'testbench';
@@ -121,32 +125,28 @@ export interface ProjectState {
     configuration: ProjectConfiguration;
 }
 
-interface ProjectEvents {
-    onInputFileChange?: (inputFiles: ProjectInputFile[]) => void;
-    onOutputFileChange?: (outputFiles: ProjectOutputFile[]) => void;
-    onConfigurationChange?: (configuration: ProjectConfiguration) => void;
-}
-
 export class Project {
     private name: string;
     private inputFiles: ProjectInputFile[];
     private outputFiles: ProjectOutputFile[];
     private configuration: ProjectConfiguration;
-    private events: ProjectEvents;
+    private eventCallback?: EventCallback;
+
+    private batchedEvents: Set<ProjectEvent> = new Set();
+    private batchCounter: number = 0;
 
     constructor(
         name: string,
         inputFiles: ProjectInputFileState[] | string[] = [],
         outputFiles: ProjectOutputFileState[] | string[] = [],
         configuration: ProjectConfiguration = DEFAULT_CONFIGURATION,
-        events: ProjectEvents = {}
+        eventCallback?: EventCallback
     ) {
         this.name = name;
         this.inputFiles = inputFiles.map((file: ProjectInputFileState | string) => ProjectInputFile.deserialize(file));
         this.outputFiles = outputFiles.map((file: ProjectOutputFileState | string) =>
             ProjectOutputFile.deserialize(this, file)
         );
-        this.events = events;
 
         const config = schemaProjectConfiguration.safeParse(configuration);
         if (config.success) {
@@ -156,7 +156,10 @@ export class Project {
         }
 
         // Trigger a config 'update' to deploy any modifications it might want to make
-        this.updateConfiguration({}, false);
+        this.updateConfiguration({});
+
+        // Set event callback LAST to prevent firing events in constructor
+        this.eventCallback = eventCallback;
     }
 
     getName() {
@@ -175,6 +178,7 @@ export class Project {
         return this.inputFiles.find((file) => file.path === filePath) ?? null;
     }
 
+    @Project.emitsEvents('inputFiles')
     addInputFiles(files: {path: string; type?: ProjectInputFileState['type']}[]) {
         for (const file of files) {
             if (!this.hasInputFile(file.path)) {
@@ -186,14 +190,11 @@ export class Project {
         this.inputFiles.sort((a, b) => {
             return a < b ? -1 : 1;
         });
-
-        this.triggerEvent('onInputFileChange');
     }
 
+    @Project.emitsEvents('inputFiles')
     removeInputFiles(filePaths: string[]) {
         this.inputFiles = this.inputFiles.filter((file) => !filePaths.includes(file.path));
-
-        this.triggerEvent('onInputFileChange');
     }
 
     getOutputFiles() {
@@ -208,6 +209,7 @@ export class Project {
         return this.outputFiles.find((file) => file.path === filePath) ?? null;
     }
 
+    @Project.emitsEvents('outputFiles')
     addOutputFiles(files: {path: string; targetId: string}[]) {
         for (const file of files) {
             const existingOutFile = this.getOutputFile(file.path);
@@ -227,26 +229,23 @@ export class Project {
         this.outputFiles.sort((a, b) => {
             return a < b ? -1 : 1;
         });
-
-        this.triggerEvent('onOutputFileChange');
     }
 
+    @Project.emitsEvents('outputFiles')
     removeOutputFiles(filePaths: string[]) {
         this.outputFiles = this.outputFiles.filter((file) => !filePaths.includes(file.path));
-
-        this.triggerEvent('onOutputFileChange');
     }
 
+    @Project.emitsEvents('outputFiles')
     expireOutputFiles() {
         if (!this.outputFiles.length) return;
 
         for (const file of this.outputFiles) {
             file.stale = true;
         }
-
-        this.triggerEvent('onOutputFileChange');
     }
 
+    @Project.emitsEvents('configuration')
     setTopLevelModule(targetId: string, module: string) {
         const target = this.getTarget(targetId);
         if (!target) throw new Error(`Target "${targetId}" does not exist!`);
@@ -258,10 +257,9 @@ export class Project {
         if (!target.yosys.options) target.yosys.options = {};
 
         target.yosys.options.topLevelModule = module;
-
-        this.triggerEvent('onConfigurationChange');
     }
 
+    @Project.emitsEvents('configuration')
     setTestbenchPath(targetId: string, testbenchPath?: string) {
         const testbenchFiles = this.getInputFiles()
             .filter((file) => file.type === 'testbench')
@@ -279,10 +277,9 @@ export class Project {
         if (!target.iverilog.options) target.iverilog.options = {};
 
         target.iverilog.options.testbenchFile = testbenchPath;
-
-        this.triggerEvent('onConfigurationChange');
     }
 
+    @Project.emitsEvents('inputFiles')
     setInputFileType(filePath: string, type: ProjectInputFile['type']) {
         const file = this.getInputFile(filePath);
         if (!file) {
@@ -291,8 +288,6 @@ export class Project {
         }
 
         file.type = type;
-
-        this.triggerEvent('onInputFileChange');
     }
 
     getTarget(id: string): ProjectTarget | null {
@@ -304,7 +299,8 @@ export class Project {
         return this.configuration;
     }
 
-    updateConfiguration(configuration: Partial<ProjectConfiguration>, doTriggerEvent = true) {
+    @Project.emitsEvents('configuration')
+    updateConfiguration(configuration: Partial<ProjectConfiguration>) {
         this.configuration = {
             ...this.configuration,
             ...configuration
@@ -314,8 +310,6 @@ export class Project {
         for (const outFile of this.outputFiles) {
             if (!outFile.target) outFile.targetId = null;
         }
-
-        if (doTriggerEvent) this.triggerEvent('onConfigurationChange');
     }
 
     protected importFromProject(other: Project, doTriggerEvent = true) {
@@ -323,22 +317,41 @@ export class Project {
         this.outputFiles = other.getOutputFiles().map((file) => file.copy(this));
         this.configuration = structuredClone(other.getConfiguration());
 
-        if (doTriggerEvent) {
-            this.triggerEvent('onInputFileChange');
-            this.triggerEvent('onOutputFileChange');
-            this.triggerEvent('onConfigurationChange');
-        }
+        if (doTriggerEvent) this.emitEvents('inputFiles', 'outputFiles', 'configuration');
     }
 
-    protected triggerEvent(event: keyof ProjectEvents) {
-        if (this.events[event] === undefined) return;
+    protected emitEvents(...events: ProjectEvent[]) {
+        for (const event of events) this.batchedEvents.add(event);
 
-        if (event === 'onInputFileChange') {
-            this.events[event](this.inputFiles);
-        } else if (event === 'onOutputFileChange') {
-            this.events[event](this.outputFiles);
-        } else if (event === 'onConfigurationChange') {
-            this.events[event](this.configuration);
+        // Do not emit events when batching
+        if (this.batchCounter > 0) return;
+
+        // Emit new + batched events
+        if (this.eventCallback) this.eventCallback(this, Array.from(this.batchedEvents));
+        this.batchedEvents.clear();
+    }
+
+    protected batchEvents<T>(func: () => T, ...events: ProjectEvent[]): T {
+        this.batchCounter += 1;
+        const res = func();
+        this.batchCounter -= 1;
+
+        this.emitEvents(...events);
+
+        return res;
+    }
+
+    protected static emitsEvents<T extends Project>(...events: ProjectEvent[]) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return function decorator(_target: object, _propertyKey: string, descriptor: TypedPropertyDescriptor<(...args: any[]) => unknown>) {
+            const originalMethod = descriptor.value;
+            if (!originalMethod) throw new Error('No original method!');
+
+            descriptor.value = function(this: T, ...args: unknown[]) {
+                return this.batchEvents(() => originalMethod.apply(this, args), ...events)
+            };
+
+            return descriptor;
         }
     }
 
