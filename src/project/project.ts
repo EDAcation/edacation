@@ -190,11 +190,15 @@ export class Project {
         this.inputFiles.sort((a, b) => {
             return a < b ? -1 : 1;
         });
+
+        this.expireOutputFiles();
     }
 
     @Project.emitsEvents('inputFiles')
     removeInputFiles(filePaths: string[]) {
         this.inputFiles = this.inputFiles.filter((file) => !filePaths.includes(file.path));
+
+        this.expireOutputFiles();
     }
 
     getOutputFiles() {
@@ -236,13 +240,19 @@ export class Project {
         this.outputFiles = this.outputFiles.filter((file) => !filePaths.includes(file.path));
     }
 
-    @Project.emitsEvents('outputFiles')
+    @Project.emitsEvents()
     expireOutputFiles() {
         if (!this.outputFiles.length) return;
 
+        let didUpdate = false;
         for (const file of this.outputFiles) {
-            file.stale = true;
+            if (!file.stale) {
+                file.stale = true;
+                didUpdate = true;
+            }
         }
+
+        if (didUpdate) this.emitEvents('outputFiles');
     }
 
     @Project.emitsEvents('configuration')
@@ -312,6 +322,7 @@ export class Project {
         }
     }
 
+    @Project.emitsEvents()
     protected importFromProject(other: Project, doTriggerEvent = true) {
         this.inputFiles = other.getInputFiles().map((file) => file.copy());
         this.outputFiles = other.getOutputFiles().map((file) => file.copy(this));
@@ -322,6 +333,9 @@ export class Project {
 
     protected emitEvents(...events: ProjectEvent[]) {
         for (const event of events) this.batchedEvents.add(event);
+
+        // Do not emit when empty
+        if (!this.batchedEvents.size) return;
 
         // Do not emit events when batching
         if (this.batchCounter > 0) return;
