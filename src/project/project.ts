@@ -4,6 +4,10 @@ import {DEFAULT_CONFIGURATION, type ProjectConfiguration, schemaProjectConfigura
 
 type ProjectTarget = ProjectConfiguration['targets'][number];
 
+export type ProjectEvent = 'inputFiles' | 'outputFiles' | 'configuration';
+
+type EventCallback = (project: Project, events: ProjectEvent[]) => void;
+
 export interface ProjectInputFileState {
     path: string;
     type: 'design' | 'testbench';
@@ -27,10 +31,10 @@ export class ProjectInputFile {
         this._type = type;
     }
 
-    static serialize(file: ProjectInputFile): ProjectInputFileState {
+    serialize(): ProjectInputFileState {
         return {
-            path: file.path,
-            type: file.type
+            path: this.path,
+            type: this.type
         };
     }
 
@@ -42,6 +46,10 @@ export class ProjectInputFile {
         }
 
         return new ProjectInputFile(data.path, data.type);
+    }
+
+    copy(): ProjectInputFile {
+        return ProjectInputFile.deserialize(this.serialize());
     }
 }
 
@@ -87,11 +95,11 @@ export class ProjectOutputFile {
         this._stale = isStale;
     }
 
-    static serialize(file: ProjectOutputFile): ProjectOutputFileState {
+    serialize(): ProjectOutputFileState {
         return {
-            path: file.path,
-            targetId: file.targetId,
-            stale: file.stale
+            path: this.path,
+            targetId: this.targetId,
+            stale: this.stale
         };
     }
 
@@ -103,6 +111,10 @@ export class ProjectOutputFile {
         }
 
         return new ProjectOutputFile(project, data.path, data.targetId, data.stale);
+    }
+
+    copy(project: Project): ProjectOutputFile {
+        return ProjectOutputFile.deserialize(project, this.serialize());
     }
 }
 
@@ -118,12 +130,17 @@ export class Project {
     private inputFiles: ProjectInputFile[];
     private outputFiles: ProjectOutputFile[];
     private configuration: ProjectConfiguration;
+    private eventCallback?: EventCallback;
+
+    private batchedEvents: Set<ProjectEvent> = new Set();
+    private batchCounter: number = 0;
 
     constructor(
         name: string,
         inputFiles: ProjectInputFileState[] | string[] = [],
         outputFiles: ProjectOutputFileState[] | string[] = [],
-        configuration: ProjectConfiguration = DEFAULT_CONFIGURATION
+        configuration: ProjectConfiguration = DEFAULT_CONFIGURATION,
+        eventCallback?: EventCallback
     ) {
         this.name = name;
         this.inputFiles = inputFiles.map((file: ProjectInputFileState | string) => ProjectInputFile.deserialize(file));
@@ -140,6 +157,9 @@ export class Project {
 
         // Trigger a config 'update' to deploy any modifications it might want to make
         this.updateConfiguration({});
+
+        // Set event callback LAST to prevent firing events in constructor
+        this.eventCallback = eventCallback;
     }
 
     getName() {
@@ -158,6 +178,7 @@ export class Project {
         return this.inputFiles.find((file) => file.path === filePath) ?? null;
     }
 
+    @Project.emitsEvents('inputFiles')
     addInputFiles(files: {path: string; type?: ProjectInputFileState['type']}[]) {
         for (const file of files) {
             if (!this.hasInputFile(file.path)) {
@@ -169,10 +190,15 @@ export class Project {
         this.inputFiles.sort((a, b) => {
             return a < b ? -1 : 1;
         });
+
+        this.expireOutputFiles();
     }
 
+    @Project.emitsEvents('inputFiles')
     removeInputFiles(filePaths: string[]) {
         this.inputFiles = this.inputFiles.filter((file) => !filePaths.includes(file.path));
+
+        this.expireOutputFiles();
     }
 
     getOutputFiles() {
@@ -187,6 +213,7 @@ export class Project {
         return this.outputFiles.find((file) => file.path === filePath) ?? null;
     }
 
+    @Project.emitsEvents('outputFiles')
     addOutputFiles(files: {path: string; targetId: string}[]) {
         for (const file of files) {
             const existingOutFile = this.getOutputFile(file.path);
@@ -208,20 +235,81 @@ export class Project {
         });
     }
 
+    @Project.emitsEvents('outputFiles')
     removeOutputFiles(filePaths: string[]) {
         this.outputFiles = this.outputFiles.filter((file) => !filePaths.includes(file.path));
     }
 
+    @Project.emitsEvents()
     expireOutputFiles() {
+        if (!this.outputFiles.length) return;
+
+        let didUpdate = false;
         for (const file of this.outputFiles) {
-            file.stale = true;
+            if (!file.stale) {
+                file.stale = true;
+                didUpdate = true;
+            }
         }
+
+        if (didUpdate) this.emitEvents('outputFiles');
+    }
+
+    @Project.emitsEvents('configuration')
+    setTopLevelModule(targetId: string, module: string) {
+        const target = this.getTarget(targetId);
+        if (!target) throw new Error(`Target "${targetId}" does not exist!`);
+
+        // Ensure the config tree exists
+        // We don't care about setting missing defaults, as this is target-level configuration,
+        // so any missing properties will fallback to project-level config.
+        if (!target.yosys) target.yosys = {};
+        if (!target.yosys.options) target.yosys.options = {};
+
+        target.yosys.options.topLevelModule = module;
+    }
+
+    @Project.emitsEvents('configuration')
+    setTestbenchPath(targetId: string, testbenchPath?: string) {
+        const testbenchFiles = this.getInputFiles()
+            .filter((file) => file.type === 'testbench')
+            .map((file) => file.path);
+        if (testbenchPath && !testbenchFiles.includes(testbenchPath))
+            throw new Error(`Testbench ${testbenchPath} is not marked as such!`);
+
+        const target = this.getTarget(targetId);
+        if (!target) throw new Error(`Target "${targetId}" does not exist!`);
+
+        // Ensure the config tree exists
+        // We don't care about setting missing defaults, as this is target-level configuration,
+        // so any missing properties will fallback to project-level config.
+        if (!target.iverilog) target.iverilog = {};
+        if (!target.iverilog.options) target.iverilog.options = {};
+
+        target.iverilog.options.testbenchFile = testbenchPath;
+    }
+
+    @Project.emitsEvents('inputFiles')
+    setInputFileType(filePath: string, type: ProjectInputFile['type']) {
+        const file = this.getInputFile(filePath);
+        if (!file) {
+            console.warn(`Tried to set file type of missing input file: ${filePath}`);
+            return;
+        }
+
+        file.type = type;
+    }
+
+    getTarget(id: string): ProjectTarget | null {
+        const targets = this.configuration.targets;
+        return targets.find((target) => target.id === id) ?? null;
     }
 
     getConfiguration() {
         return this.configuration;
     }
 
+    @Project.emitsEvents('configuration')
     updateConfiguration(configuration: Partial<ProjectConfiguration>) {
         this.configuration = {
             ...this.configuration,
@@ -234,16 +322,58 @@ export class Project {
         }
     }
 
-    getTarget(id: string): ProjectTarget | null {
-        const targets = this.configuration.targets;
-        return targets.find((target) => target.id === id) ?? null;
+    @Project.emitsEvents()
+    protected importFromProject(other: Project, doTriggerEvent = true) {
+        this.inputFiles = other.getInputFiles().map((file) => file.copy());
+        this.outputFiles = other.getOutputFiles().map((file) => file.copy(this));
+        this.configuration = structuredClone(other.getConfiguration());
+
+        if (doTriggerEvent) this.emitEvents('inputFiles', 'outputFiles', 'configuration');
+    }
+
+    protected emitEvents(...events: ProjectEvent[]) {
+        for (const event of events) this.batchedEvents.add(event);
+
+        // Do not emit when empty
+        if (!this.batchedEvents.size) return;
+
+        // Do not emit events when batching
+        if (this.batchCounter > 0) return;
+
+        // Emit new + batched events
+        if (this.eventCallback) this.eventCallback(this, Array.from(this.batchedEvents));
+        this.batchedEvents.clear();
+    }
+
+    protected batchEvents<T>(func: () => T, ...events: ProjectEvent[]): T {
+        this.batchCounter += 1;
+        const res = func();
+        this.batchCounter -= 1;
+
+        this.emitEvents(...events);
+
+        return res;
+    }
+
+    protected static emitsEvents<T extends Project>(...events: ProjectEvent[]) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return function decorator(_target: object, _propertyKey: string, descriptor: TypedPropertyDescriptor<(...args: any[]) => unknown>) {
+            const originalMethod = descriptor.value;
+            if (!originalMethod) throw new Error('No original method!');
+
+            descriptor.value = function(this: T, ...args: unknown[]) {
+                return this.batchEvents(() => originalMethod.apply(this, args), ...events)
+            };
+
+            return descriptor;
+        }
     }
 
     static serialize(project: Project): ProjectState {
         return {
             name: project.name,
-            inputFiles: project.inputFiles.map((file) => ProjectInputFile.serialize(file)),
-            outputFiles: project.outputFiles.map((file) => ProjectOutputFile.serialize(file)),
+            inputFiles: project.inputFiles.map((file) => file.serialize()),
+            outputFiles: project.outputFiles.map((file) => file.serialize()),
             configuration: project.configuration
         };
     }
