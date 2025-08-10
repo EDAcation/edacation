@@ -6,7 +6,7 @@ export const DEFAULT_CONFIGURATION: ProjectConfiguration = {
     targets: [
         {
             id: 'default',
-            name: 'ECP5 - LFE5U-12 - caBGA381',
+            name: 'ECP5 - LFE5U-25 - caBGA381',
 
             vendor: 'lattice',
             family: 'ecp5',
