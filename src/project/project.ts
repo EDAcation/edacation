@@ -288,7 +288,8 @@ export class ProjectTarget {
             }
             this._data.id = updates.id;
         }
-        Object.assign(this._data, updates);
+        Object.assign(this._data, structuredClone(updates));
+        
         this._project.triggerConfigurationChanged();
     }
 
@@ -508,7 +509,10 @@ export class Project {
             throw new Error(`Target with ID "${id}" already exists!`);
         }
 
-        const newTargetObj: TargetConfiguration = {...(config || DEFAULT_TARGET), id};
+        const newTargetObj: TargetConfiguration = {
+            ...structuredClone(config || DEFAULT_TARGET),
+            id
+        };
         this.configuration.targets.push(newTargetObj);
 
         const wrapper = new ProjectTarget(this, newTargetObj);
