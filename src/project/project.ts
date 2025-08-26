@@ -1,8 +1,6 @@
 import {decodeJSON, encodeJSON} from '../util.js';
 
-import {DEFAULT_CONFIGURATION, type ProjectConfiguration, schemaProjectConfiguration} from './configuration.js';
-
-type ProjectTarget = ProjectConfiguration['targets'][number];
+import {DEFAULT_CONFIGURATION, type ProjectConfiguration, schemaProjectConfiguration, TargetConfiguration} from './configuration.js';
 
 export type ProjectEvent = 'inputFiles' | 'outputFiles' | 'configuration';
 
@@ -82,7 +80,7 @@ export class ProjectOutputFile {
         this._targetId = id;
     }
 
-    get target(): ProjectTarget | null {
+    get target(): TargetConfiguration | null {
         if (!this._targetId) return null;
         return this._project.getTarget(this._targetId);
     }
@@ -300,7 +298,15 @@ export class Project {
         file.type = type;
     }
 
-    getTarget(id: string): ProjectTarget | null {
+    getTargets(): TargetConfiguration[] {
+        return this.configuration.targets;
+    }
+
+    hasTarget(id: string): boolean {
+        return this.getTarget(id) !== null;
+    }
+
+    getTarget(id: string): TargetConfiguration | null {
         const targets = this.configuration.targets;
         return targets.find((target) => target.id === id) ?? null;
     }
