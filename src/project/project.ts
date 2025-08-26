@@ -135,10 +135,20 @@ export class ProjectTarget {
             throw new Error(`Target with ID "${newId}" already exists!`);
         }
         this._data.id = newId;
+
         this._project.triggerConfigurationChanged();
     }
 
-    // Access the raw target configuration object
+    get name(): string {
+        return this._data.name;
+    }
+
+    set name(newName: string) {
+        if (newName === this._data.name) return;
+        this._data.name = newName;
+        this._project.triggerConfigurationChanged();
+    }
+
     get config(): TargetConfiguration {
         return this._data;
     }
@@ -344,7 +354,7 @@ export class Project {
             console.warn(`Tried to set file type of missing input file: ${filePath}`);
             return;
         }
-        file.type = type;
+        file.type = type; // internal setter triggers event; batched by decorator
     }
 
     getTargets(): ProjectTarget[] {
@@ -455,7 +465,9 @@ export class Project {
         this.batchCounter += 1;
         const res = func();
         this.batchCounter -= 1;
+
         this.emitEvents(...events);
+
         return res;
     }
 
@@ -467,10 +479,12 @@ export class Project {
         ): TypedPropertyDescriptor<T> | void {
             const originalMethod = descriptor.value;
             if (typeof originalMethod !== 'function') throw new Error('No original method!');
+
             descriptor.value = function(this: Project, ...args: unknown[]) {
                 // eslint-disable-next-line @typescript-eslint/no-unsafe-return
                 return this.batchEvents(() => originalMethod.apply(this, args), ...events);
             } as T;
+
             return descriptor;
         };
     }
@@ -489,6 +503,7 @@ export class Project {
         const inputFiles: ProjectInputFileState[] | string[] = data.inputFiles ?? [];
         const outputFiles: ProjectOutputFileState[] | string[] = data.outputFiles ?? [];
         const configuration: ProjectConfiguration = data.configuration ?? {};
+
         return new Project(name, inputFiles, outputFiles, configuration);
     }
 
