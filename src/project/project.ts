@@ -346,9 +346,14 @@ export class Project {
         }
     }
 
-    updateTarget(id: string, updates: Partial<Omit<TargetConfiguration, 'id'>>) {
+    updateTarget(id: string, updates: Partial<TargetConfiguration>) {
         const target = this.getTarget(id);
         if (!target) throw new Error(`Target with ID "${id}" does not exist!`);
+
+        if (updates.id && updates.id !== id && this.hasTarget(updates.id)) {
+            throw new Error(`Target with ID "${updates.id}" already exists!`);
+        }
+
         Object.assign(target, updates);
     }
 
