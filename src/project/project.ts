@@ -2,7 +2,7 @@ import {decodeJSON, encodeJSON} from '../util.js';
 
 import {DEFAULT_CONFIGURATION, DEFAULT_TARGET, type ProjectConfiguration, schemaProjectConfiguration, TargetConfiguration} from './configuration.js';
 
-export type ProjectEvent = 'inputFiles' | 'outputFiles' | 'configuration';
+export type ProjectEvent = 'meta' | 'inputFiles' | 'outputFiles' | 'configuration';
 
 type EventCallback = (project: Project, events: ProjectEvent[]) => void;
 
@@ -162,6 +162,11 @@ export class Project {
 
     getName() {
         return this.name;
+    }
+
+    @Project.emitsEvents("meta")
+    setName(name: string) {
+        this.name = name;
     }
 
     getInputFiles() {
