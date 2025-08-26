@@ -317,7 +317,7 @@ export class Project {
     }
 
     @Project.emitsEvents('configuration')
-    addTarget(id?: string): TargetConfiguration {
+    addTarget(id?: string, config?: Omit<TargetConfiguration, 'id'>): TargetConfiguration {
         if (!id) {
             // Generate a unique ID
             let idx = 1;
@@ -329,7 +329,7 @@ export class Project {
             throw new Error(`Target with ID "${id}" already exists!`);
         }
 
-        const newTarget = DEFAULT_TARGET;
+        const newTarget = {id: '', ...(config || DEFAULT_TARGET)};
         newTarget.id = id;
 
         this.configuration.targets.push(newTarget);
