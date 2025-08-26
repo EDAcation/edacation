@@ -13,6 +13,7 @@ export interface ProjectInputFileState {
 
 export class ProjectInputFile {
     constructor(
+        private _project: Project,
         private _path: ProjectInputFileState['path'],
         private _type: ProjectInputFileState['type']
     ) {}
@@ -26,7 +27,9 @@ export class ProjectInputFile {
     }
 
     set type(type: ProjectInputFileState['type']) {
+        if (this._type === type) return;
         this._type = type;
+        this._project.triggerInputFilesChanged();
     }
 
     serialize(): ProjectInputFileState {
@@ -36,18 +39,16 @@ export class ProjectInputFile {
         };
     }
 
-    static deserialize(data: ProjectInputFileState | string, ..._args: unknown[]): ProjectInputFile {
-        // Older versions of this module (<= 0.3.9) stored input files as an array of paths instead,
-        // so we need to migrate if data is a string (single output file).
+    static deserialize(project: Project, data: ProjectInputFileState | string, ..._args: unknown[]): ProjectInputFile {
+        // Older versions (<= 0.3.9) stored input files as an array of paths
         if (typeof data === 'string') {
             data = {path: data, type: 'design'};
         }
-
-        return new ProjectInputFile(data.path, data.type);
+        return new ProjectInputFile(project, data.path, data.type);
     }
 
-    copy(): ProjectInputFile {
-        return ProjectInputFile.deserialize(this.serialize());
+    copy(project: Project): ProjectInputFile {
+        return ProjectInputFile.deserialize(project, this.serialize());
     }
 }
 
@@ -77,7 +78,9 @@ export class ProjectOutputFile {
         if (id !== null && this._project.getTarget(id) === null) {
             throw new Error(`Invalid target id: ${id}`);
         }
+        if (this._targetId === id) return;
         this._targetId = id;
+        this._project.triggerOutputFilesChanged();
     }
 
     get target(): TargetConfiguration | null {
@@ -90,7 +93,9 @@ export class ProjectOutputFile {
     }
 
     set stale(isStale: ProjectOutputFileState['stale']) {
+        if (this._stale === isStale) return;
         this._stale = isStale;
+        this._project.triggerOutputFilesChanged();
     }
 
     serialize(): ProjectOutputFileState {
@@ -102,12 +107,10 @@ export class ProjectOutputFile {
     }
 
     static deserialize(project: Project, data: ProjectOutputFileState | string, ..._args: unknown[]) {
-        // Older versions of this module (<= 0.3.12) stored output files as an array of paths instead,
-        // so we need to migrate if data is a string (single output file).
+        // Older versions (<= 0.3.12) stored output files as an array of paths
         if (typeof data === 'string') {
             data = {path: data, targetId: null, stale: false};
         }
-
         return new ProjectOutputFile(project, data.path, data.targetId, data.stale);
     }
 
@@ -141,7 +144,9 @@ export class Project {
         eventCallback?: EventCallback
     ) {
         this.name = name;
-        this.inputFiles = inputFiles.map((file: ProjectInputFileState | string) => ProjectInputFile.deserialize(file));
+        this.inputFiles = inputFiles.map((file: ProjectInputFileState | string) =>
+            ProjectInputFile.deserialize(this, file)
+    );
         this.outputFiles = outputFiles.map((file: ProjectOutputFileState | string) =>
             ProjectOutputFile.deserialize(this, file)
         );
@@ -164,7 +169,7 @@ export class Project {
         return this.name;
     }
 
-    @Project.emitsEvents("meta")
+    @Project.emitsEvents('meta')
     setName(name: string) {
         this.name = name;
     }
@@ -185,7 +190,7 @@ export class Project {
     addInputFiles(files: {path: string; type?: ProjectInputFileState['type']}[]) {
         for (const file of files) {
             if (!this.hasInputFile(file.path)) {
-                const inputFile = new ProjectInputFile(file.path, file.type ?? 'design');
+                const inputFile = new ProjectInputFile(this, file.path, file.type ?? 'design');
                 this.inputFiles.push(inputFile);
             }
         }
@@ -299,8 +304,7 @@ export class Project {
             console.warn(`Tried to set file type of missing input file: ${filePath}`);
             return;
         }
-
-        file.type = type;
+        file.type = type; // internal setter triggers event; batched by decorator
     }
 
     getTargets(): TargetConfiguration[] {
@@ -376,11 +380,20 @@ export class Project {
 
     @Project.emitsEvents()
     protected importFromProject(other: Project, doTriggerEvent = true) {
-        this.inputFiles = other.getInputFiles().map((file) => file.copy());
+        this.inputFiles = other.getInputFiles().map((file) => file.copy(this));
         this.outputFiles = other.getOutputFiles().map((file) => file.copy(this));
         this.configuration = structuredClone(other.getConfiguration());
 
         if (doTriggerEvent) this.emitEvents('inputFiles', 'outputFiles', 'configuration');
+    }
+
+    // Public triggers used by file objects
+    public triggerInputFilesChanged() {
+        this.emitEvents('inputFiles');
+    }
+
+    public triggerOutputFilesChanged() {
+        this.emitEvents('outputFiles');
     }
 
     protected emitEvents(...events: ProjectEvent[]) {
