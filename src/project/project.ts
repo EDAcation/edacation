@@ -1,6 +1,6 @@
 import {decodeJSON, encodeJSON} from '../util.js';
 
-import {DEFAULT_CONFIGURATION, DEFAULT_TARGET, type ProjectConfiguration, schemaProjectConfiguration, TargetConfiguration} from './configuration.js';
+import {DEFAULT_CONFIGURATION, DEFAULT_TARGET, type ProjectConfiguration, schemaProjectConfiguration, TargetConfiguration, TargetOptionTypes} from './configuration.js';
 
 export type ProjectEvent = 'meta' | 'inputFiles' | 'outputFiles' | 'configuration';
 
@@ -146,6 +146,26 @@ export class ProjectTarget {
     set name(newName: string) {
         if (newName === this._data.name) return;
         this._data.name = newName;
+        this._project.triggerConfigurationChanged();
+    }
+
+    getWorkerConfig(worker: keyof TargetOptionTypes): TargetConfiguration[typeof worker] | null {
+        return this._data[worker] ?? null;
+    }
+
+    setWorkerConfig(worker: keyof TargetOptionTypes, config: Partial<TargetOptionTypes[typeof worker]> | null) {
+        if (config === null) {
+            // Delete worker config
+            if (this._data[worker]) {
+                delete this._data[worker];
+                this._project.triggerConfigurationChanged();
+            }
+            return;
+        }
+
+        if (!this._data[worker]) this._data[worker] = {};
+        Object.assign(this._data[worker], config);
+        
         this._project.triggerConfigurationChanged();
     }
 
