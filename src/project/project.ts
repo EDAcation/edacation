@@ -83,7 +83,7 @@ export class ProjectOutputFile {
         this._project.triggerOutputFilesChanged();
     }
 
-    get target(): TargetConfiguration | null {
+    get target(): ProjectTarget | null {
         if (!this._targetId) return null;
         return this._project.getTarget(this._targetId);
     }
@@ -119,6 +119,46 @@ export class ProjectOutputFile {
     }
 }
 
+export class ProjectTarget {
+    constructor(
+        private _project: Project,
+        private _data: TargetConfiguration
+    ) {}
+
+    get id(): string {
+        return this._data.id;
+    }
+
+    set id(newId: string) {
+        if (newId === this._data.id) return;
+        if (this._project.hasTarget(newId)) {
+            throw new Error(`Target with ID "${newId}" already exists!`);
+        }
+        this._data.id = newId;
+        this._project.triggerConfigurationChanged();
+    }
+
+    // Access the raw target configuration object
+    get config(): TargetConfiguration {
+        return this._data;
+    }
+
+    update(updates: Partial<TargetConfiguration>) {
+        if (updates.id && updates.id !== this.id) {
+            if (this._project.hasTarget(updates.id)) {
+                throw new Error(`Target with ID "${updates.id}" already exists!`);
+            }
+            this._data.id = updates.id;
+        }
+        Object.assign(this._data, updates);
+        this._project.triggerConfigurationChanged();
+    }
+
+    serialize(): TargetConfiguration {
+        return this._data;
+    }
+}
+
 export interface ProjectState {
     name: string;
     inputFiles: ProjectInputFileState[] | string[];
@@ -131,6 +171,7 @@ export class Project {
     private inputFiles: ProjectInputFile[];
     private outputFiles: ProjectOutputFile[];
     private configuration: ProjectConfiguration;
+    private targets: ProjectTarget[] = [];
     private eventCallback?: EventCallback;
 
     private batchedEvents: Set<ProjectEvent> = new Set();
@@ -146,7 +187,7 @@ export class Project {
         this.name = name;
         this.inputFiles = inputFiles.map((file: ProjectInputFileState | string) =>
             ProjectInputFile.deserialize(this, file)
-    );
+        );
         this.outputFiles = outputFiles.map((file: ProjectOutputFileState | string) =>
             ProjectOutputFile.deserialize(this, file)
         );
@@ -157,6 +198,9 @@ export class Project {
         } else {
             throw new Error(`Failed to parse project configuration: ${config.error.toString()}`);
         }
+
+        // Build target wrappers
+        this.targets = (this.configuration.targets || []).map(t => new ProjectTarget(this, t));
 
         // Trigger a config 'update' to deploy any modifications it might want to make
         this.updateConfiguration({});
@@ -268,13 +312,11 @@ export class Project {
         const target = this.getTarget(targetId);
         if (!target) throw new Error(`Target "${targetId}" does not exist!`);
 
-        // Ensure the config tree exists
-        // We don't care about setting missing defaults, as this is target-level configuration,
-        // so any missing properties will fallback to project-level config.
-        if (!target.yosys) target.yosys = {};
-        if (!target.yosys.options) target.yosys.options = {};
+        const cfg = target.config;
+        if (!cfg.yosys) cfg.yosys = {};
+        if (!cfg.yosys.options) cfg.yosys.options = {};
 
-        target.yosys.options.topLevelModule = module;
+        cfg.yosys.options.topLevelModule = module;
     }
 
     @Project.emitsEvents('configuration')
@@ -288,13 +330,11 @@ export class Project {
         const target = this.getTarget(targetId);
         if (!target) throw new Error(`Target "${targetId}" does not exist!`);
 
-        // Ensure the config tree exists
-        // We don't care about setting missing defaults, as this is target-level configuration,
-        // so any missing properties will fallback to project-level config.
-        if (!target.iverilog) target.iverilog = {};
-        if (!target.iverilog.options) target.iverilog.options = {};
+        const cfg = target.config;
+        if (!cfg.iverilog) cfg.iverilog = {};
+        if (!cfg.iverilog.options) cfg.iverilog.options = {};
 
-        target.iverilog.options.testbenchFile = testbenchPath;
+        cfg.iverilog.options.testbenchFile = testbenchPath;
     }
 
     @Project.emitsEvents('inputFiles')
@@ -304,45 +344,43 @@ export class Project {
             console.warn(`Tried to set file type of missing input file: ${filePath}`);
             return;
         }
-        file.type = type; // internal setter triggers event; batched by decorator
+        file.type = type;
     }
 
-    getTargets(): TargetConfiguration[] {
-        return this.configuration.targets;
+    getTargets(): ProjectTarget[] {
+        return this.targets;
     }
 
     hasTarget(id: string): boolean {
         return this.getTarget(id) !== null;
     }
 
-    getTarget(id: string): TargetConfiguration | null {
-        const targets = this.configuration.targets;
-        return targets.find((target) => target.id === id) ?? null;
+    getTarget(id: string): ProjectTarget | null {
+        return this.targets.find(t => t.id === id) ?? null;
     }
 
     @Project.emitsEvents('configuration')
-    addTarget(id?: string, config?: Omit<TargetConfiguration, 'id'>): TargetConfiguration {
+    addTarget(id?: string, config?: Omit<TargetConfiguration, 'id'>): ProjectTarget {
         if (!id) {
             // Generate a unique ID
             let idx = 1;
-            while (this.hasTarget(`target${idx}`)) {
-                idx += 1;
-            }
+            while (this.hasTarget(`target${idx}`)) idx += 1;
             id = `target${idx}`;
         } else if (this.hasTarget(id)) {
             throw new Error(`Target with ID "${id}" already exists!`);
         }
 
-        const newTarget = {id: '', ...(config || DEFAULT_TARGET)};
-        newTarget.id = id;
-
-        this.configuration.targets.push(newTarget);
-
-        return newTarget;
+        const newTargetObj: TargetConfiguration = {id: id, ...(config || DEFAULT_TARGET)};
+        this.configuration.targets.push(newTargetObj);
+        const wrapper = new ProjectTarget(this, newTargetObj);
+        this.targets.push(wrapper);
+        return wrapper;
     }
 
+    @Project.emitsEvents('configuration')
     removeTarget(id: string) {
         this.configuration.targets = this.configuration.targets.filter((target) => target.id !== id);
+        this.targets = this.targets.filter(t => t.id !== id);
 
         // Unset target ID from any output files using this target
         for (const outFile of this.outputFiles) {
@@ -353,12 +391,7 @@ export class Project {
     updateTarget(id: string, updates: Partial<TargetConfiguration>) {
         const target = this.getTarget(id);
         if (!target) throw new Error(`Target with ID "${id}" does not exist!`);
-
-        if (updates.id && updates.id !== id && this.hasTarget(updates.id)) {
-            throw new Error(`Target with ID "${updates.id}" already exists!`);
-        }
-
-        Object.assign(target, updates);
+        target.update(updates);
     }
 
     getConfiguration() {
@@ -372,7 +405,9 @@ export class Project {
             ...configuration
         };
 
-        // Unset 'lingering' output file target IDs
+        // Rebuild target wrappers if targets array provided/changed
+        this.targets = (this.configuration.targets || []).map(t => new ProjectTarget(this, t));
+
         for (const outFile of this.outputFiles) {
             if (!outFile.target) outFile.targetId = null;
         }
@@ -382,18 +417,24 @@ export class Project {
     protected importFromProject(other: Project, doTriggerEvent = true) {
         this.inputFiles = other.getInputFiles().map((file) => file.copy(this));
         this.outputFiles = other.getOutputFiles().map((file) => file.copy(this));
+        // Deep clone configuration
         this.configuration = structuredClone(other.getConfiguration());
+        this.targets = (this.configuration.targets || []).map(t => new ProjectTarget(this, t));
 
         if (doTriggerEvent) this.emitEvents('inputFiles', 'outputFiles', 'configuration');
     }
 
-    // Public triggers used by file objects
+    // Public triggers used by file/target objects
     public triggerInputFilesChanged() {
         this.emitEvents('inputFiles');
     }
 
     public triggerOutputFilesChanged() {
         this.emitEvents('outputFiles');
+    }
+
+    public triggerConfigurationChanged() {
+        this.emitEvents('configuration');
     }
 
     protected emitEvents(...events: ProjectEvent[]) {
@@ -414,9 +455,7 @@ export class Project {
         this.batchCounter += 1;
         const res = func();
         this.batchCounter -= 1;
-
         this.emitEvents(...events);
-
         return res;
     }
 
@@ -428,12 +467,10 @@ export class Project {
         ): TypedPropertyDescriptor<T> | void {
             const originalMethod = descriptor.value;
             if (typeof originalMethod !== 'function') throw new Error('No original method!');
-
             descriptor.value = function(this: Project, ...args: unknown[]) {
                 // eslint-disable-next-line @typescript-eslint/no-unsafe-return
                 return this.batchEvents(() => originalMethod.apply(this, args), ...events);
             } as T;
-
             return descriptor;
         };
     }
@@ -452,7 +489,6 @@ export class Project {
         const inputFiles: ProjectInputFileState[] | string[] = data.inputFiles ?? [];
         const outputFiles: ProjectOutputFileState[] | string[] = data.outputFiles ?? [];
         const configuration: ProjectConfiguration = data.configuration ?? {};
-
         return new Project(name, inputFiles, outputFiles, configuration);
     }
 
