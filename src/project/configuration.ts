@@ -2,17 +2,19 @@ import {z} from 'zod';
 
 import type {ArrayElement} from '../util.js';
 
+export const DEFAULT_TARGET: TargetConfiguration = {
+    id: 'default',
+    name: 'ECP5 - LFE5U-25 - caBGA381',
+
+    vendor: 'lattice',
+    family: 'ecp5',
+    device: 'lfe5u-25',
+    package: 'caBGA381'
+}
+
 export const DEFAULT_CONFIGURATION: ProjectConfiguration = {
     targets: [
-        {
-            id: 'default',
-            name: 'ECP5 - LFE5U-25 - caBGA381',
-
-            vendor: 'lattice',
-            family: 'ecp5',
-            device: 'lfe5u-25',
-            package: 'caBGA381'
-        }
+        DEFAULT_TARGET
     ]
 };
 

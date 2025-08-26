@@ -1,6 +1,6 @@
 import {decodeJSON, encodeJSON} from '../util.js';
 
-import {DEFAULT_CONFIGURATION, type ProjectConfiguration, schemaProjectConfiguration, TargetConfiguration} from './configuration.js';
+import {DEFAULT_CONFIGURATION, DEFAULT_TARGET, type ProjectConfiguration, schemaProjectConfiguration, TargetConfiguration} from './configuration.js';
 
 export type ProjectEvent = 'inputFiles' | 'outputFiles' | 'configuration';
 
@@ -311,6 +311,42 @@ export class Project {
         return targets.find((target) => target.id === id) ?? null;
     }
 
+    @Project.emitsEvents('configuration')
+    addTarget(id?: string): TargetConfiguration {
+        if (!id) {
+            // Generate a unique ID
+            let idx = 1;
+            while (this.hasTarget(`target${idx}`)) {
+                idx += 1;
+            }
+            id = `target${idx}`;
+        } else if (this.hasTarget(id)) {
+            throw new Error(`Target with ID "${id}" already exists!`);
+        }
+
+        const newTarget = DEFAULT_TARGET;
+        newTarget.id = id;
+
+        this.configuration.targets.push(newTarget);
+
+        return newTarget;
+    }
+
+    removeTarget(id: string) {
+        this.configuration.targets = this.configuration.targets.filter((target) => target.id !== id);
+
+        // Unset target ID from any output files using this target
+        for (const outFile of this.outputFiles) {
+            if (outFile.targetId === id) outFile.targetId = null;
+        }
+    }
+
+    updateTarget(id: string, updates: Partial<Omit<TargetConfiguration, 'id'>>) {
+        const target = this.getTarget(id);
+        if (!target) throw new Error(`Target with ID "${id}" does not exist!`);
+        Object.assign(target, updates);
+    }
+
     getConfiguration() {
         return this.configuration;
     }
@@ -361,18 +397,22 @@ export class Project {
         return res;
     }
 
-    protected static emitsEvents<T extends Project>(...events: ProjectEvent[]) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return function decorator(_target: object, _propertyKey: string, descriptor: TypedPropertyDescriptor<(...args: any[]) => unknown>) {
+    protected static emitsEvents(...events: ProjectEvent[]) {
+        return function decorator<T>(
+            _target: object,
+            _propertyKey: string | symbol,
+            descriptor: TypedPropertyDescriptor<T>
+        ): TypedPropertyDescriptor<T> | void {
             const originalMethod = descriptor.value;
-            if (!originalMethod) throw new Error('No original method!');
+            if (typeof originalMethod !== 'function') throw new Error('No original method!');
 
-            descriptor.value = function(this: T, ...args: unknown[]) {
-                return this.batchEvents(() => originalMethod.apply(this, args), ...events)
-            };
+            descriptor.value = function(this: Project, ...args: unknown[]) {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+                return this.batchEvents(() => originalMethod.apply(this, args), ...events);
+            } as T;
 
             return descriptor;
-        }
+        };
     }
 
     static serialize(project: Project): ProjectState {
