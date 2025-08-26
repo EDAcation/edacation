@@ -508,10 +508,12 @@ export class Project {
             throw new Error(`Target with ID "${id}" already exists!`);
         }
 
-        const newTargetObj: TargetConfiguration = {id: id, ...(config || DEFAULT_TARGET)};
+        const newTargetObj: TargetConfiguration = {...(config || DEFAULT_TARGET), id};
         this.configuration.targets.push(newTargetObj);
+
         const wrapper = new ProjectTarget(this, newTargetObj);
         this.targets.push(wrapper);
+
         return wrapper;
     }
 
