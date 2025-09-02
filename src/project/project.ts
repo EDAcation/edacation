@@ -1,7 +1,28 @@
 import {decodeJSON, encodeJSON} from '../util.js';
 
-import {DEFAULT_CONFIGURATION, DEFAULT_TARGET, type ProjectConfiguration, schemaProjectConfiguration, TargetConfiguration, TargetOptionTypes} from './configuration.js';
+import {DEFAULT_CONFIGURATION, DEFAULT_TARGET, type ProjectConfiguration, schemaProjectConfiguration, TargetConfiguration, TargetOptionTypes, WorkerId} from './configuration.js';
 import {Device, Family, Vendor, VENDORS} from './devices.js';
+import { getIVerilogOptions } from './iverilog.js';
+import { getNextpnrOptions } from './nextpnr.js';
+import { defaultParse, getCombined } from './target.js';
+import { getYosysOptions } from './yosys.js';
+
+// Utility types for strongly typed array-based paths into TargetConfiguration
+// A path is represented as a tuple of property names, e.g. ['yosys','options','topLevelModule'].
+// Primitive or array properties are treated as terminals.
+// Refined type for primitives (includes callable signatures via function type)
+type Primitive = string | number | boolean | bigint | symbol | null | undefined | Date | RegExp | ((...args: unknown[]) => unknown);
+type PathArray<T> = T extends Primitive ? never : {
+    [K in Extract<keyof T, string>]:
+        T[K] extends Primitive | unknown[] ? [K] : [K] | [K, ...PathArray<T[K]>]
+}[Extract<keyof T, string>];
+type PathArrayValue<T, P extends readonly string[]> =
+    P extends [] ? T :
+    P extends [infer K extends string, ...infer R extends string[]]
+        ? K extends keyof T
+            ? PathArrayValue<T[K], R>
+            : unknown
+        : unknown;
 
 export type ProjectEvent = 'meta' | 'inputFiles' | 'outputFiles' | 'configuration';
 
@@ -257,28 +278,54 @@ export class ProjectTarget {
         this._project.triggerConfigurationChanged();
     }
 
-    getWorkerConfig(worker: keyof TargetOptionTypes): TargetConfiguration[typeof worker] | null {
-        return this._data[worker] ?? null;
+    get config(): TargetConfiguration {
+        return this._data;
     }
 
-    setWorkerConfig(worker: keyof TargetOptionTypes, config: Partial<TargetOptionTypes[typeof worker]> | null) {
-        if (config === null) {
-            // Delete worker config
-            if (this._data[worker]) {
-                delete this._data[worker];
-                this._project.triggerConfigurationChanged();
+    setConfig<P extends PathArray<TargetConfiguration>>(path: P, value: PathArrayValue<TargetConfiguration, P>) {
+        if (!path.length) throw new Error('Path must be a non-empty array');
+
+        let cursor: Record<string, unknown> = this._data as unknown as Record<string, unknown>;
+        for (let i = 0; i < path.length - 1; i++) {
+            const key = path[i];
+            const next = cursor[key];
+            if (typeof next !== 'object' || next === null) {
+                const child: Record<string, unknown> = {};
+                cursor[key] = child;
+                cursor = child;
+            } else {
+                cursor = next as Record<string, unknown>;
             }
-            return;
         }
 
-        if (!this._data[worker]) this._data[worker] = {};
-        Object.assign(this._data[worker], config);
+        const last = path[path.length - 1];
+        if (cursor[last] === value) return;
+        cursor[last] = value as unknown;
         
         this._project.triggerConfigurationChanged();
     }
 
-    get config(): TargetConfiguration {
-        return this._data;
+    getEffectiveOptions<W extends WorkerId>(workerId: WorkerId): TargetOptionTypes[W] {
+        if (workerId === 'yosys') return getYosysOptions(this._project.getConfiguration(), this.id);
+        else if (workerId === 'nextpnr') return getNextpnrOptions(this._project.getConfiguration(), this.id);
+        else if (workerId === 'iverilog') return getIVerilogOptions(this._project.getConfiguration(), this.id);
+        throw new Error(`Worker ID "${String(workerId)}" is not supported.`);
+    }
+
+    getEffectiveTextConfig(
+        workerId: WorkerId,
+        configId: string,
+        generated: string[],
+        parse: (values: string[]) => string[] = defaultParse,
+    ) {
+        return getCombined(
+            this._project.getConfiguration(),
+            this.id,
+            workerId,
+            configId,
+            generated,
+            parse
+        );
     }
 
     update(updates: Partial<TargetConfiguration>) {
