@@ -310,7 +310,6 @@ export class Project {
     private inputFiles: ProjectInputFile[];
     private outputFiles: ProjectOutputFile[];
     private configuration: ProjectConfiguration;
-    private targets: ProjectTarget[] = [];
     private eventCallback?: EventCallback;
 
     private batchedEvents: Set<ProjectEvent> = new Set();
@@ -338,10 +337,7 @@ export class Project {
             throw new Error(`Failed to parse project configuration: ${config.error.toString()}`);
         }
 
-        // Build target wrappers
-        this.targets = (this.configuration.targets || []).map(t => new ProjectTarget(this, t));
-
-        // Trigger a config 'update' to deploy any modifications it might want to make
+        // Trigger any updates that the configuration might want to do
         this.updateConfiguration({});
 
         // Set event callback LAST to prevent firing events in constructor
@@ -487,15 +483,16 @@ export class Project {
     }
 
     getTargets(): ProjectTarget[] {
-        return this.targets;
+        return this.configuration.targets.map(t => new ProjectTarget(this, t));
     }
 
     hasTarget(id: string): boolean {
-        return this.getTarget(id) !== null;
+        return this.configuration.targets.some(t => t.id === id);
     }
 
     getTarget(id: string): ProjectTarget | null {
-        return this.targets.find(t => t.id === id) ?? null;
+        const t = this.configuration.targets.find(t => t.id === id);
+        return t ? new ProjectTarget(this, t) : null;
     }
 
     @Project.emitsEvents('configuration')
@@ -513,20 +510,14 @@ export class Project {
             ...structuredClone(config || DEFAULT_TARGET),
             id
         };
+        
         this.configuration.targets.push(newTargetObj);
-
-        const wrapper = new ProjectTarget(this, newTargetObj);
-        this.targets.push(wrapper);
-
-        return wrapper;
+        return new ProjectTarget(this, newTargetObj);
     }
 
     @Project.emitsEvents('configuration')
     removeTarget(id: string) {
         this.configuration.targets = this.configuration.targets.filter((target) => target.id !== id);
-        this.targets = this.targets.filter(t => t.id !== id);
-
-        // Unset target ID from any output files using this target
         for (const outFile of this.outputFiles) {
             if (outFile.targetId === id) outFile.targetId = null;
         }
@@ -548,10 +539,7 @@ export class Project {
             ...this.configuration,
             ...configuration
         };
-
-        // Rebuild target wrappers if targets array provided/changed
-        this.targets = (this.configuration.targets || []).map(t => new ProjectTarget(this, t));
-
+        // Remove invalid target references from output files
         for (const outFile of this.outputFiles) {
             if (!outFile.target) outFile.targetId = null;
         }
@@ -561,9 +549,7 @@ export class Project {
     protected importFromProject(other: Project, doTriggerEvent = true) {
         this.inputFiles = other.getInputFiles().map((file) => file.copy(this));
         this.outputFiles = other.getOutputFiles().map((file) => file.copy(this));
-        // Deep clone configuration
         this.configuration = structuredClone(other.getConfiguration());
-        this.targets = (this.configuration.targets || []).map(t => new ProjectTarget(this, t));
 
         if (doTriggerEvent) this.emitEvents('inputFiles', 'outputFiles', 'configuration');
     }
