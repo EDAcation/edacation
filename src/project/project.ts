@@ -517,7 +517,11 @@ export class Project {
 
     @Project.emitsEvents('configuration')
     removeTarget(id: string) {
-        this.configuration.targets = this.configuration.targets.filter((target) => target.id !== id);
+        // In-place removal to avoid reassigning the targets array reference
+        const targetsArr = this.configuration.targets;
+        for (let i = targetsArr.length - 1; i >= 0; i--) {
+            if (targetsArr[i].id === id) targetsArr.splice(i, 1);
+        }
         for (const outFile of this.outputFiles) {
             if (outFile.targetId === id) outFile.targetId = null;
         }
