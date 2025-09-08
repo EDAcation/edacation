@@ -598,11 +598,12 @@ export class Project {
 
     @Project.emitsEvents()
     protected importFromProject(other: Project, doTriggerEvent = true) {
+        this.name = other.getName();
         this.inputFiles = other.getInputFiles().map((file) => file.copy(this));
         this.outputFiles = other.getOutputFiles().map((file) => file.copy(this));
         this.configuration = structuredClone(other.getConfiguration());
 
-        if (doTriggerEvent) this.emitEvents('inputFiles', 'outputFiles', 'configuration');
+        if (doTriggerEvent) this.emitEvents('inputFiles', 'outputFiles', 'configuration', 'meta');
     }
 
     // Public triggers used by file/target objects
