@@ -381,7 +381,7 @@ export class Project {
         if (config.success) {
             this.configuration = config.data;
         } else {
-            throw new Error(`Failed to parse project configuration: ${config.error.toString()}`);
+            throw new Error(`Failed to parse project configuration: ${config.error.message}`);
         }
 
         // Trigger any updates that the configuration might want to do
