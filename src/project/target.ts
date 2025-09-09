@@ -55,7 +55,7 @@ export const getOptions = <W extends WorkerId>(
     };
 };
 
-const defaultParse = (values: string[]) => values;
+export const defaultParse = (values: string[]) => values;
 
 export const getCombined = (
     configuration: ProjectConfiguration,
