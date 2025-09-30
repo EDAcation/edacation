@@ -1,4 +1,4 @@
-import {decodeJSON, encodeJSON} from '../util.js';
+import {decodeJSON, encodeJSON, FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_PINCFG} from '../util.js';
 
 import {DEFAULT_CONFIGURATION, DEFAULT_TARGET, type ProjectConfiguration, schemaProjectConfiguration, TargetConfiguration, TargetOptionTypes, WorkerId} from './configuration.js';
 import {Device, Family, Vendor, VENDORS} from './devices.js';
@@ -31,6 +31,22 @@ type EventCallback = (project: Project, events: ProjectEvent[]) => void;
 export interface ProjectInputFileState {
     path: string;
     type: 'design' | 'testbench' | 'pinconfig';
+}
+
+const guessInputFileType = (filePath: string): ProjectInputFileState['type'] => {
+    // *_tb.<hdl_ext> -> testbench
+    // *.<pin_cfg_ext> -> pinconfig
+    // default: design
+    const baseName = filePath.split('/').pop() ?? filePath;
+    const lowerBase = baseName.toLowerCase();
+    const ext = lowerBase.split('.').pop() ?? '';
+
+    const hdlExts = FILE_EXTENSIONS_HDL.map(e => e.toLowerCase());
+    const pincfgExts = FILE_EXTENSIONS_PINCFG.map(e => e.toLowerCase());
+
+    if (hdlExts.some(e => lowerBase.endsWith(`_tb.${e}`))) return 'testbench';
+    if (pincfgExts.includes(ext)) return 'pinconfig';
+    return 'design';
 }
 
 export class ProjectInputFile {
@@ -416,7 +432,8 @@ export class Project {
     addInputFiles(files: {path: string; type?: ProjectInputFileState['type']}[]) {
         for (const file of files) {
             if (!this.hasInputFile(file.path)) {
-                const inputFile = new ProjectInputFile(this, file.path, file.type ?? 'design');
+                const fileType = file.type ?? guessInputFileType(file.path);
+                const inputFile = new ProjectInputFile(this, file.path, fileType);
                 this.inputFiles.push(inputFile);
             }
         }
