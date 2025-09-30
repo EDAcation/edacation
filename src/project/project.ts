@@ -30,7 +30,7 @@ type EventCallback = (project: Project, events: ProjectEvent[]) => void;
 
 export interface ProjectInputFileState {
     path: string;
-    type: 'design' | 'testbench';
+    type: 'design' | 'testbench' | 'pinconfig';
 }
 
 export class ProjectInputFile {

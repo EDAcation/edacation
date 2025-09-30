@@ -13,7 +13,8 @@ export type NextpnrWorkerOptions = WorkerOptions<NextpnrStep, NextpnrOptions>;
 const DEFAULT_OPTIONS: NextpnrOptions = {
     placedSvg: false,
     routedSvg: false,
-    routedJson: true
+    routedJson: true,
+    pinConfigFile: undefined
 };
 
 export const getNextpnrDefaultOptions = (configuration: ProjectConfiguration): NextpnrOptions =>
@@ -44,6 +45,15 @@ export const generateNextpnrWorkerOptions = (
         case 'ecp5': {
             args.push(`--${device.device}`);
             args.push('--package', target.package.toUpperCase());
+
+            if (options.pinConfigFile) {
+                args.push('--lpf', options.pinConfigFile);
+            }
+
+            // Write bitstream file
+            const file = getTargetFile(target, `${family.architecture}.config`);
+            outputFiles.push(file);
+            args.push('--textcfg', file);
             break;
         }
         case 'generic': {
@@ -57,10 +67,14 @@ export const generateNextpnrWorkerOptions = (
             args.push(`--${device.device}`);
             args.push('--package', target.package);
 
-            // Write ASC file by default
+            if (options.pinConfigFile) {
+                args.push('--pcf', options.pinConfigFile);
+            }
+
+            // Write ASC file
             const file = getTargetFile(target, `${family.architecture}.asc`);
             outputFiles.push(file);
-            args.push('--asc', `${family.architecture}.asc`);
+            args.push('--asc', file);
             break;
         }
         case 'nexus': {
