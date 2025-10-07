@@ -321,7 +321,7 @@ export class ProjectTarget {
         this._project.triggerConfigurationChanged();
     }
 
-    getEffectiveOptions<W extends WorkerId>(workerId: WorkerId): TargetOptionTypes[W] {
+    getEffectiveOptions<W extends WorkerId>(workerId: W): TargetOptionTypes[W] {
         if (workerId === 'yosys') return getYosysOptions(this._project.getConfiguration(), this.id);
         else if (workerId === 'nextpnr') return getNextpnrOptions(this._project.getConfiguration(), this.id);
         else if (workerId === 'iverilog') return getIVerilogOptions(this._project.getConfiguration(), this.id);
@@ -519,7 +519,7 @@ export class Project {
     }
 
     @Project.emitsEvents('configuration')
-    setTestbenchPath(targetId: string, testbenchPath?: string) {
+    setActiveTestbenchPath(targetId: string, testbenchPath?: string) {
         const testbenchFiles = this.getInputFiles()
             .filter((file) => file.type === 'testbench')
             .map((file) => file.path);
@@ -529,11 +529,35 @@ export class Project {
         const target = this.getTarget(targetId);
         if (!target) throw new Error(`Target "${targetId}" does not exist!`);
 
-        const cfg = target.config;
-        if (!cfg.iverilog) cfg.iverilog = {};
-        if (!cfg.iverilog.options) cfg.iverilog.options = {};
+        target.setConfig(['iverilog', 'options', 'testbenchFile'], testbenchPath ?? '');
+    }
 
-        cfg.iverilog.options.testbenchFile = testbenchPath;
+    getActiveTestbenchPath(targetId: string) {
+        const target = this.getTarget(targetId);
+        if (!target) throw new Error(`Target "${targetId}" does not exist!`);
+
+        return target.getEffectiveOptions('iverilog').testbenchFile;
+    }
+
+    @Project.emitsEvents('configuration')
+    setActivePinConfigPath(targetId: string, pinConfigPath?: string) {
+        const pinConfigFiles = this.getInputFiles()
+            .filter((file) => file.type === 'pinconfig')
+            .map((file) => file.path);
+        if (pinConfigPath && !pinConfigFiles.includes(pinConfigPath))
+            throw new Error(`Pin config file ${pinConfigPath} is not marked as such!`);
+
+        const target = this.getTarget(targetId);
+        if (!target) throw new Error(`Target "${targetId}" does not exist!`);
+
+        target.setConfig(['nextpnr', 'options', 'pinConfigFile'], pinConfigPath ?? '');
+    }
+
+    getActivePinConfigPath(targetId: string) {
+        const target = this.getTarget(targetId);
+        if (!target) throw new Error(`Target "${targetId}" does not exist!`);
+
+        return target.getEffectiveOptions('nextpnr').pinConfigFile;
     }
 
     @Project.emitsEvents('inputFiles')
