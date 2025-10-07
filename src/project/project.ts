@@ -529,7 +529,7 @@ export class Project {
         const target = this.getTarget(targetId);
         if (!target) throw new Error(`Target "${targetId}" does not exist!`);
 
-        target.setConfig(['iverilog', 'options', 'testbenchFile'], testbenchPath ?? '');
+        target.setConfig(['iverilog', 'options', 'testbenchFile'], testbenchPath);
     }
 
     getActiveTestbenchPath(targetId: string) {
@@ -550,7 +550,7 @@ export class Project {
         const target = this.getTarget(targetId);
         if (!target) throw new Error(`Target "${targetId}" does not exist!`);
 
-        target.setConfig(['nextpnr', 'options', 'pinConfigFile'], pinConfigPath ?? '');
+        target.setConfig(['nextpnr', 'options', 'pinConfigFile'], pinConfigPath);
     }
 
     getActivePinConfigPath(targetId: string) {
@@ -669,6 +669,11 @@ export class Project {
         // Do not emit events when batching
         if (this.batchCounter > 0) return;
 
+        // Make any corrections needed,
+        // and add 'configuration' event if any corrections were made
+        const didCorrect = this.makeCorrections();
+        if (didCorrect) this.batchedEvents.add('configuration');
+
         // Emit new + batched events
         if (this.eventCallback) this.eventCallback(this, Array.from(this.batchedEvents));
         this.batchedEvents.clear();
@@ -680,6 +685,16 @@ export class Project {
         this.batchCounter -= 1;
 
         this.emitEvents(...events);
+
+        return res;
+    }
+
+    protected ignoreEvents<T>(func: () => T): T {
+        // raise batch counter to ignore events,
+        // but don't actually emit them later
+        this.batchCounter += 1;
+        const res = func();
+        this.batchCounter -= 1;
 
         return res;
     }
@@ -700,6 +715,66 @@ export class Project {
 
             return descriptor;
         };
+    }
+
+    protected makeCorrections(): boolean {
+        return this.ignoreEvents(() => {
+            let didChange = false;
+            didChange = this.correctTestbenchPath() || didChange;
+            didChange = this.correctPinconfigPaths() || didChange;
+            return didChange;
+        });
+    }
+
+    private correctTestbenchPath(): boolean {
+        const testbenches = this.getInputFiles()
+            .filter((file) => file.type == 'testbench')
+            .map((file) => file.path);
+
+        let didChange = false;
+        for (const target of this.getTargets()) {
+            const tbPath = target.getEffectiveOptions('iverilog').testbenchFile;
+
+            if (tbPath && testbenches.includes(tbPath)) {
+                // testbench is configured and correct
+                continue;
+            } else if (!tbPath && testbenches.length === 0) {
+                // no path configured but also no testbenches present, so ok
+                continue;
+            }
+
+            const newTb = testbenches.length === 0 ? undefined : testbenches[0];
+            this.setActiveTestbenchPath(target.id, newTb)
+            didChange = true;
+        }
+
+        return didChange;
+    }
+
+    private correctPinconfigPaths(): boolean {
+        const pinconfigs = this.getInputFiles()
+            .filter((file) => file.type == 'pinconfig')
+            .map((file) => file.path);
+
+        let didChange = false;
+
+        for (const target of this.getTargets()) {
+            const pcPath = target.getEffectiveOptions('nextpnr').pinConfigFile;
+
+            if (pcPath && pinconfigs.includes(pcPath)) {
+                // pinconfig is configured and correct
+                continue;
+            } else if (!pcPath && pinconfigs.length === 0) {
+                // no path configured but also no testbenches present, so ok
+                continue;
+            }
+
+            const newPc = pinconfigs.length === 0 ? undefined : pinconfigs[0];
+            this.setActivePinConfigPath(target.id, newPc)
+            didChange = true;
+        }
+
+        return didChange;
     }
 
     static serialize(project: Project): ProjectState {
