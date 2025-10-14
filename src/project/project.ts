@@ -187,6 +187,16 @@ export class ProjectTarget {
         this._project.triggerConfigurationChanged();
     }
 
+    get isActive(): boolean {
+        const activeTarget = this._project.getActiveTarget();
+        return activeTarget?.id === this.id;
+    }
+
+    setActive() {
+        if (this.isActive) return;
+        this._project.setActiveTarget(this.id);
+    }
+
     get vendorId(): string {
         return this._data.vendor;
     }
@@ -583,6 +593,20 @@ export class Project {
         return t ? new ProjectTarget(this, t) : null;
     }
 
+    getActiveTarget(): ProjectTarget | null {
+        if (!this.configuration.activeTargetId) return null;
+        return this.getTarget(this.configuration.activeTargetId);
+    }
+
+    @Project.emitsEvents('configuration')
+    setActiveTarget(id: string | null) {
+        if (id !== null && !this.hasTarget(id)) {
+            throw new Error(`Target with ID "${id}" does not exist!`);
+        }
+
+        this.configuration.activeTargetId = id ?? undefined;
+    }
+
     @Project.emitsEvents('configuration')
     addTarget(id?: string, config?: Omit<TargetConfiguration, 'id'>): ProjectTarget {
         if (!id) {
@@ -722,6 +746,7 @@ export class Project {
             let didChange = false;
             didChange = this.correctTestbenchPath() || didChange;
             didChange = this.correctPinconfigPaths() || didChange;
+            didChange = this.correctActiveTarget() || didChange;
             return didChange;
         });
     }
@@ -775,6 +800,22 @@ export class Project {
         }
 
         return didChange;
+    }
+
+    correctActiveTarget(): boolean {
+        const activeTarget = this.getActiveTarget();
+        if (activeTarget) return false;  // active target exists, so ok
+
+        const activeTargetId = this.configuration.activeTargetId;
+        if (activeTargetId && this.hasTarget(activeTargetId)) return false; // active target ID is valid, so ok
+        
+        // No active target or invalid active target ID, so set to first target (if any)
+        if (this.configuration.targets.length > 0) {
+            this.configuration.activeTargetId = this.configuration.targets[0].id;
+        } else {
+            this.configuration.activeTargetId = undefined;
+        }
+        return true;
     }
 
     static serialize(project: Project): ProjectState {

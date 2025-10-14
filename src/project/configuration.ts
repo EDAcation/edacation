@@ -126,7 +126,8 @@ const schemaTarget = z.object({
 
 export const schemaProjectConfiguration = z.object({
     defaults: schemaTargetDefaults.optional(),
-    targets: z.array(schemaTarget)
+    targets: z.array(schemaTarget),
+    activeTargetId: z.string().optional(),
 });
 
 export type ProjectConfiguration = z.infer<typeof schemaProjectConfiguration>;
