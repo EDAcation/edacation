@@ -49,6 +49,11 @@ const guessInputFileType = (filePath: string): ProjectInputFileState['type'] => 
     return 'design';
 }
 
+// Fallback clone to handle Proxy objects (structuredClone throws DataCloneError on Proxy)
+const safeStructuredClone = <T>(value: T): T => {
+    return JSON.parse(JSON.stringify(value)) as T;
+}
+
 export class ProjectInputFile {
     constructor(
         private _project: Project,
@@ -361,7 +366,7 @@ export class ProjectTarget {
             }
             this._data.id = updates.id;
         }
-        Object.assign(this._data, structuredClone(updates));
+        Object.assign(this._data, safeStructuredClone(updates));
         
         this._project.triggerConfigurationChanged();
     }
@@ -619,7 +624,7 @@ export class Project {
         }
 
         const newTargetObj: TargetConfiguration = {
-            ...structuredClone(config || DEFAULT_TARGET),
+            ...safeStructuredClone(config || DEFAULT_TARGET),
             id
         };
         
@@ -666,7 +671,7 @@ export class Project {
         this.name = other.getName();
         this.inputFiles = other.getInputFiles().map((file) => file.copy(this));
         this.outputFiles = other.getOutputFiles().map((file) => file.copy(this));
-        this.configuration = structuredClone(other.getConfiguration());
+        this.configuration = safeStructuredClone(other.getConfiguration());
 
         if (doTriggerEvent) this.emitEvents('inputFiles', 'outputFiles', 'configuration', 'meta');
     }
