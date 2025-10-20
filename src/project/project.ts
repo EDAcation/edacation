@@ -2,6 +2,7 @@ import {decodeJSON, encodeJSON, FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_PINCFG} fro
 
 import {DEFAULT_CONFIGURATION, DEFAULT_TARGET, type ProjectConfiguration, schemaProjectConfiguration, TargetConfiguration, TargetOptionTypes, WorkerId} from './configuration.js';
 import {Device, Family, Vendor, VENDORS} from './devices.js';
+import { getFlasherOptions } from './flasher.js';
 import { getIVerilogOptions } from './iverilog.js';
 import { getNextpnrOptions } from './nextpnr.js';
 import { defaultParse, getCombined } from './target.js';
@@ -340,6 +341,7 @@ export class ProjectTarget {
         if (workerId === 'yosys') return getYosysOptions(this._project.getConfiguration(), this.id);
         else if (workerId === 'nextpnr') return getNextpnrOptions(this._project.getConfiguration(), this.id);
         else if (workerId === 'iverilog') return getIVerilogOptions(this._project.getConfiguration(), this.id);
+        else if (workerId === 'flasher') return getFlasherOptions(this._project.getConfiguration(), this.id);
         throw new Error(`Worker ID "${String(workerId)}" is not supported.`);
     }
 
