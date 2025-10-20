@@ -1,7 +1,8 @@
-import {decodeJSON, encodeJSON} from '../util.js';
+import {decodeJSON, encodeJSON, FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_PINCFG} from '../util.js';
 
 import {DEFAULT_CONFIGURATION, DEFAULT_TARGET, type ProjectConfiguration, schemaProjectConfiguration, TargetConfiguration, TargetOptionTypes, WorkerId} from './configuration.js';
 import {Device, Family, Vendor, VENDORS} from './devices.js';
+import { getFlasherOptions } from './flasher.js';
 import { getIVerilogOptions } from './iverilog.js';
 import { getNextpnrOptions } from './nextpnr.js';
 import { defaultParse, getCombined } from './target.js';
@@ -30,7 +31,28 @@ type EventCallback = (project: Project, events: ProjectEvent[]) => void;
 
 export interface ProjectInputFileState {
     path: string;
-    type: 'design' | 'testbench';
+    type: 'design' | 'testbench' | 'pinconfig';
+}
+
+const guessInputFileType = (filePath: string): ProjectInputFileState['type'] => {
+    // *_tb.<hdl_ext> -> testbench
+    // *.<pin_cfg_ext> -> pinconfig
+    // default: design
+    const baseName = filePath.split('/').pop() ?? filePath;
+    const lowerBase = baseName.toLowerCase();
+    const ext = lowerBase.split('.').pop() ?? '';
+
+    const hdlExts = FILE_EXTENSIONS_HDL.map(e => e.toLowerCase());
+    const pincfgExts = FILE_EXTENSIONS_PINCFG.map(e => e.toLowerCase());
+
+    if (hdlExts.some(e => lowerBase.endsWith(`_tb.${e}`))) return 'testbench';
+    if (pincfgExts.includes(ext)) return 'pinconfig';
+    return 'design';
+}
+
+// Fallback clone to handle Proxy objects (structuredClone throws DataCloneError on Proxy)
+const safeStructuredClone = <T>(value: T): T => {
+    return JSON.parse(JSON.stringify(value)) as T;
 }
 
 export class ProjectInputFile {
@@ -171,6 +193,16 @@ export class ProjectTarget {
         this._project.triggerConfigurationChanged();
     }
 
+    get isActive(): boolean {
+        const activeTarget = this._project.getActiveTarget();
+        return activeTarget?.id === this.id;
+    }
+
+    setActive() {
+        if (this.isActive) return;
+        this._project.setActiveTarget(this.id);
+    }
+
     get vendorId(): string {
         return this._data.vendor;
     }
@@ -305,10 +337,11 @@ export class ProjectTarget {
         this._project.triggerConfigurationChanged();
     }
 
-    getEffectiveOptions<W extends WorkerId>(workerId: WorkerId): TargetOptionTypes[W] {
+    getEffectiveOptions<W extends WorkerId>(workerId: W): TargetOptionTypes[W] {
         if (workerId === 'yosys') return getYosysOptions(this._project.getConfiguration(), this.id);
         else if (workerId === 'nextpnr') return getNextpnrOptions(this._project.getConfiguration(), this.id);
         else if (workerId === 'iverilog') return getIVerilogOptions(this._project.getConfiguration(), this.id);
+        else if (workerId === 'flasher') return getFlasherOptions(this._project.getConfiguration(), this.id);
         throw new Error(`Worker ID "${String(workerId)}" is not supported.`);
     }
 
@@ -335,7 +368,7 @@ export class ProjectTarget {
             }
             this._data.id = updates.id;
         }
-        Object.assign(this._data, structuredClone(updates));
+        Object.assign(this._data, safeStructuredClone(updates));
         
         this._project.triggerConfigurationChanged();
     }
@@ -416,7 +449,8 @@ export class Project {
     addInputFiles(files: {path: string; type?: ProjectInputFileState['type']}[]) {
         for (const file of files) {
             if (!this.hasInputFile(file.path)) {
-                const inputFile = new ProjectInputFile(this, file.path, file.type ?? 'design');
+                const fileType = file.type ?? guessInputFileType(file.path);
+                const inputFile = new ProjectInputFile(this, file.path, fileType);
                 this.inputFiles.push(inputFile);
             }
         }
@@ -502,7 +536,7 @@ export class Project {
     }
 
     @Project.emitsEvents('configuration')
-    setTestbenchPath(targetId: string, testbenchPath?: string) {
+    setActiveTestbenchPath(targetId: string, testbenchPath?: string) {
         const testbenchFiles = this.getInputFiles()
             .filter((file) => file.type === 'testbench')
             .map((file) => file.path);
@@ -512,11 +546,35 @@ export class Project {
         const target = this.getTarget(targetId);
         if (!target) throw new Error(`Target "${targetId}" does not exist!`);
 
-        const cfg = target.config;
-        if (!cfg.iverilog) cfg.iverilog = {};
-        if (!cfg.iverilog.options) cfg.iverilog.options = {};
+        target.setConfig(['iverilog', 'options', 'testbenchFile'], testbenchPath);
+    }
 
-        cfg.iverilog.options.testbenchFile = testbenchPath;
+    getActiveTestbenchPath(targetId: string) {
+        const target = this.getTarget(targetId);
+        if (!target) throw new Error(`Target "${targetId}" does not exist!`);
+
+        return target.getEffectiveOptions('iverilog').testbenchFile;
+    }
+
+    @Project.emitsEvents('configuration')
+    setActivePinConfigPath(targetId: string, pinConfigPath?: string) {
+        const pinConfigFiles = this.getInputFiles()
+            .filter((file) => file.type === 'pinconfig')
+            .map((file) => file.path);
+        if (pinConfigPath && !pinConfigFiles.includes(pinConfigPath))
+            throw new Error(`Pin config file ${pinConfigPath} is not marked as such!`);
+
+        const target = this.getTarget(targetId);
+        if (!target) throw new Error(`Target "${targetId}" does not exist!`);
+
+        target.setConfig(['nextpnr', 'options', 'pinConfigFile'], pinConfigPath);
+    }
+
+    getActivePinConfigPath(targetId: string) {
+        const target = this.getTarget(targetId);
+        if (!target) throw new Error(`Target "${targetId}" does not exist!`);
+
+        return target.getEffectiveOptions('nextpnr').pinConfigFile;
     }
 
     @Project.emitsEvents('inputFiles')
@@ -542,6 +600,20 @@ export class Project {
         return t ? new ProjectTarget(this, t) : null;
     }
 
+    getActiveTarget(): ProjectTarget | null {
+        if (!this.configuration.activeTargetId) return null;
+        return this.getTarget(this.configuration.activeTargetId);
+    }
+
+    @Project.emitsEvents('configuration')
+    setActiveTarget(id: string | null) {
+        if (id !== null && !this.hasTarget(id)) {
+            throw new Error(`Target with ID "${id}" does not exist!`);
+        }
+
+        this.configuration.activeTargetId = id ?? undefined;
+    }
+
     @Project.emitsEvents('configuration')
     addTarget(id?: string, config?: Omit<TargetConfiguration, 'id'>): ProjectTarget {
         if (!id) {
@@ -554,7 +626,7 @@ export class Project {
         }
 
         const newTargetObj: TargetConfiguration = {
-            ...structuredClone(config || DEFAULT_TARGET),
+            ...safeStructuredClone(config || DEFAULT_TARGET),
             id
         };
         
@@ -601,7 +673,7 @@ export class Project {
         this.name = other.getName();
         this.inputFiles = other.getInputFiles().map((file) => file.copy(this));
         this.outputFiles = other.getOutputFiles().map((file) => file.copy(this));
-        this.configuration = structuredClone(other.getConfiguration());
+        this.configuration = safeStructuredClone(other.getConfiguration());
 
         if (doTriggerEvent) this.emitEvents('inputFiles', 'outputFiles', 'configuration', 'meta');
     }
@@ -628,6 +700,11 @@ export class Project {
         // Do not emit events when batching
         if (this.batchCounter > 0) return;
 
+        // Make any corrections needed,
+        // and add 'configuration' event if any corrections were made
+        const didCorrect = this.makeCorrections();
+        if (didCorrect) this.batchedEvents.add('configuration');
+
         // Emit new + batched events
         if (this.eventCallback) this.eventCallback(this, Array.from(this.batchedEvents));
         this.batchedEvents.clear();
@@ -639,6 +716,16 @@ export class Project {
         this.batchCounter -= 1;
 
         this.emitEvents(...events);
+
+        return res;
+    }
+
+    protected ignoreEvents<T>(func: () => T): T {
+        // raise batch counter to ignore events,
+        // but don't actually emit them later
+        this.batchCounter += 1;
+        const res = func();
+        this.batchCounter -= 1;
 
         return res;
     }
@@ -659,6 +746,83 @@ export class Project {
 
             return descriptor;
         };
+    }
+
+    protected makeCorrections(): boolean {
+        return this.ignoreEvents(() => {
+            let didChange = false;
+            didChange = this.correctTestbenchPath() || didChange;
+            didChange = this.correctPinconfigPaths() || didChange;
+            didChange = this.correctActiveTarget() || didChange;
+            return didChange;
+        });
+    }
+
+    private correctTestbenchPath(): boolean {
+        const testbenches = this.getInputFiles()
+            .filter((file) => file.type == 'testbench')
+            .map((file) => file.path);
+
+        let didChange = false;
+        for (const target of this.getTargets()) {
+            const tbPath = target.getEffectiveOptions('iverilog').testbenchFile;
+
+            if (tbPath && testbenches.includes(tbPath)) {
+                // testbench is configured and correct
+                continue;
+            } else if (!tbPath && testbenches.length === 0) {
+                // no path configured but also no testbenches present, so ok
+                continue;
+            }
+
+            const newTb = testbenches.length === 0 ? undefined : testbenches[0];
+            this.setActiveTestbenchPath(target.id, newTb)
+            didChange = true;
+        }
+
+        return didChange;
+    }
+
+    private correctPinconfigPaths(): boolean {
+        const pinconfigs = this.getInputFiles()
+            .filter((file) => file.type == 'pinconfig')
+            .map((file) => file.path);
+
+        let didChange = false;
+
+        for (const target of this.getTargets()) {
+            const pcPath = target.getEffectiveOptions('nextpnr').pinConfigFile;
+
+            if (pcPath && pinconfigs.includes(pcPath)) {
+                // pinconfig is configured and correct
+                continue;
+            } else if (!pcPath && pinconfigs.length === 0) {
+                // no path configured but also no testbenches present, so ok
+                continue;
+            }
+
+            const newPc = pinconfigs.length === 0 ? undefined : pinconfigs[0];
+            this.setActivePinConfigPath(target.id, newPc)
+            didChange = true;
+        }
+
+        return didChange;
+    }
+
+    correctActiveTarget(): boolean {
+        const activeTarget = this.getActiveTarget();
+        if (activeTarget) return false;  // active target exists, so ok
+
+        const activeTargetId = this.configuration.activeTargetId;
+        if (activeTargetId && this.hasTarget(activeTargetId)) return false; // active target ID is valid, so ok
+        
+        // No active target or invalid active target ID, so set to first target (if any)
+        if (this.configuration.targets.length > 0) {
+            this.configuration.activeTargetId = this.configuration.targets[0].id;
+        } else {
+            this.configuration.activeTargetId = undefined;
+        }
+        return true;
     }
 
     static serialize(project: Project): ProjectState {

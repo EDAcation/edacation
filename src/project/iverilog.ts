@@ -91,7 +91,7 @@ export const getIVerilogWorkerOptions = (project: Project, targetId: string): IV
     const options = generated.options;
     const steps = generated.steps.map((step) => {
         const tool = step.tool;
-        const args = getCombined(project.getConfiguration(), targetId, 'iverilog', 'commands', step.arguments);
+        const args = getCombined(project.getConfiguration(), targetId, 'iverilog', 'arguments', step.arguments, parseIVerilogArguments);
         return {tool, arguments: args};
     });
 

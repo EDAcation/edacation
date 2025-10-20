@@ -52,7 +52,8 @@ const schemaYosysTarget = z.object({
 const schemaNextpnrOptions = z.object({
     placedSvg: z.boolean().optional(),
     routedSvg: z.boolean().optional(),
-    routedJson: z.boolean().optional()
+    routedJson: z.boolean().optional(),
+    pinConfigFile: z.string().optional()
 });
 
 const schemaNextpnr = z.object({
@@ -77,17 +78,33 @@ const schemaIVerilogTarget = z.object({
     options: schemaIVerilogOptions.optional()
 });
 
+const schemaFlasherOptions = z.object({
+    board: z.string().optional()
+});
+
+const schemaFlasher = z.object({
+    arguments: schemaValueList.optional(),
+    options: schemaFlasherOptions.optional()
+});
+const schemaFlasherTarget = z.object({
+    arguments: schemaValueListTarget.optional(),
+    options: schemaFlasherOptions.optional()
+});
+
 const schemaCombinedYosys = schemaWorker.merge(schemaYosys);
 const schemaCombinedYosysTarget = schemaWorkerTarget.merge(schemaYosysTarget);
 const schemaCombinedNextpnr = schemaWorker.merge(schemaNextpnr);
 const schemaCombinedNextpnrTarget = schemaWorkerTarget.merge(schemaNextpnrTarget);
 const schemaCombinedIVerilog = schemaWorker.merge(schemaIVerilog);
 const schemaCombinedIVerilogTarget = schemaWorkerTarget.merge(schemaIVerilogTarget);
+const schemaCombinedFlasher = schemaWorker.merge(schemaFlasher);
+const schemaCombinedFlasherTarget = schemaWorkerTarget.merge(schemaFlasherTarget);
 
 const schemaTargetDefaults = z.object({
     yosys: schemaCombinedYosys.optional(),
     nextpnr: schemaCombinedNextpnr.optional(),
-    iverilog: schemaCombinedIVerilog.optional()
+    iverilog: schemaCombinedIVerilog.optional(),
+    flasher: schemaCombinedFlasher.optional()
 });
 
 const schemaTarget = z.object({
@@ -103,12 +120,14 @@ const schemaTarget = z.object({
 
     yosys: schemaCombinedYosysTarget.optional(),
     nextpnr: schemaCombinedNextpnrTarget.optional(),
-    iverilog: schemaCombinedIVerilogTarget.optional()
+    iverilog: schemaCombinedIVerilogTarget.optional(),
+    flasher: schemaCombinedFlasherTarget.optional()
 });
 
 export const schemaProjectConfiguration = z.object({
     defaults: schemaTargetDefaults.optional(),
-    targets: z.array(schemaTarget)
+    targets: z.array(schemaTarget),
+    activeTargetId: z.string().optional(),
 });
 
 export type ProjectConfiguration = z.infer<typeof schemaProjectConfiguration>;
@@ -116,7 +135,7 @@ export type TargetDefaultsConfiguration = NonNullable<ProjectConfiguration['defa
 export type TargetConfiguration = ArrayElement<ProjectConfiguration['targets']>;
 export type ValueListConfiguration = z.infer<typeof schemaValueList>;
 export type ValueListConfigurationTarget = z.infer<typeof schemaValueListTarget>;
-export type WorkerId = 'yosys' | 'nextpnr' | 'iverilog';
+export type WorkerId = 'yosys' | 'nextpnr' | 'iverilog' | 'flasher';
 export type WorkerConfiguration = z.infer<typeof schemaWorker>;
 export type WorkerTargetConfiguration = z.infer<typeof schemaWorkerTarget>;
 export type YosysOptions = z.infer<typeof schemaYosysOptions>;
@@ -128,11 +147,15 @@ export type NextpnrTargetConfiguration = z.infer<typeof schemaNextpnrTarget>;
 export type IVerilogOptions = z.infer<typeof schemaIVerilogOptions>;
 export type IVerilogConfiguration = z.infer<typeof schemaIVerilog>;
 export type IVerilogTargetConfiguration = z.infer<typeof schemaIVerilogTarget>;
+export type FlasherOptions = z.infer<typeof schemaFlasherOptions>;
+export type FlasherConfiguration = z.infer<typeof schemaFlasher>;
+export type FlasherTargetConfiguration = z.infer<typeof schemaFlasherTarget>;
 
 export type TargetOptionTypes = {
     yosys: YosysOptions;
     nextpnr: NextpnrOptions;
     iverilog: IVerilogOptions;
+    flasher: FlasherOptions;
 };
 
 export interface WorkerStep {
