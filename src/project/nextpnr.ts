@@ -3,7 +3,7 @@ import {parseArgs} from 'string-args-parser';
 import type {NextpnrOptions, ProjectConfiguration, WorkerOptions, WorkerStep} from './configuration.js';
 import {VENDORS} from './devices.js';
 import type {Project} from './project.js';
-import {getCombined, getDefaultOptions, getOptions, getTarget, getTargetFile} from './target.js';
+import {getCombined, getOptions, getTarget, getTargetFile} from './target.js';
 
 // Empty for now
 export type NextpnrStep = WorkerStep;
@@ -17,16 +17,16 @@ const DEFAULT_OPTIONS: NextpnrOptions = {
     pinConfigFile: undefined
 };
 
-export const getNextpnrDefaultOptions = (configuration: ProjectConfiguration): NextpnrOptions =>
-    getDefaultOptions(configuration, 'nextpnr', DEFAULT_OPTIONS);
+export const parseNextpnrArguments = (args: string[]) => args.flatMap((arg) => parseArgs(arg));
 
 export const getNextpnrOptions = (configuration: ProjectConfiguration, targetId: string): NextpnrOptions =>
     getOptions(configuration, targetId, 'nextpnr', DEFAULT_OPTIONS);
 
-export const generateNextpnrWorkerOptions = (
-    configuration: ProjectConfiguration,
+export const getNextpnrWorkerOptions = (
+    project: Project,
     targetId: string
 ): NextpnrWorkerOptions => {
+    const configuration = project.getConfiguration();
     const target = getTarget(configuration, targetId);
     const options = getNextpnrOptions(configuration, targetId);
 
@@ -34,47 +34,57 @@ export const generateNextpnrWorkerOptions = (
     const family = vendor.families[target.family];
     const device = family.devices[target.device];
 
-    const inputFiles = [getTargetFile(target, `${family.architecture}.json`)];
+    // Input files
+    const generatedInputFiles = [`${family.architecture}.json`].map(f => getTargetFile(target, f));
+    const inputFiles = getCombined(
+        project.getConfiguration(),
+        targetId,
+        'nextpnr',
+        'inputFiles',
+        generatedInputFiles
+    ).filter((f) => !!f);
 
-    const outputFiles: string[] = [];
-
+    // Tool
     const tool = `nextpnr-${family.architecture}`;
-    const args: string[] = [];
+
+    // Output files / args
+    const generatedOutputFiles: string[] = [];
+    const generatedArgs: string[] = [];
 
     switch (family.architecture) {
         case 'ecp5': {
-            args.push(`--${device.device}`);
-            args.push('--package', target.package.toUpperCase());
+            generatedArgs.push(`--${device.device}`);
+            generatedArgs.push('--package', target.package.toUpperCase());
 
             if (options.pinConfigFile) {
-                args.push('--lpf', options.pinConfigFile);
+                generatedArgs.push('--lpf', options.pinConfigFile);
             }
 
             // Write bitstream file
             const file = getTargetFile(target, `${family.architecture}.config`);
-            outputFiles.push(file);
-            args.push('--textcfg', file);
+            generatedOutputFiles.push(file);
+            generatedArgs.push('--textcfg', file);
             break;
         }
         case 'generic': {
             break;
         }
         case 'gowin': {
-            args.push('--device', `${device.device.replace('-', '-UV')}${target.package}C5/I4`);
+            generatedArgs.push('--device', `${device.device.replace('-', '-UV')}${target.package}C5/I4`);
             break;
         }
         case 'ice40': {
-            args.push(`--${device.device}`);
-            args.push('--package', target.package);
+            generatedArgs.push(`--${device.device}`);
+            generatedArgs.push('--package', target.package);
 
             if (options.pinConfigFile) {
-                args.push('--pcf', options.pinConfigFile);
+                generatedArgs.push('--pcf', options.pinConfigFile);
             }
 
             // Write ASC file
             const file = getTargetFile(target, `${family.architecture}.asc`);
-            outputFiles.push(file);
-            args.push('--asc', file);
+            generatedOutputFiles.push(file);
+            generatedArgs.push('--asc', file);
             break;
         }
         case 'nexus': {
@@ -92,7 +102,7 @@ export const generateNextpnrWorkerOptions = (
                 throw new Error(`Package "${target.package}" is currenty not supported.`);
             }
 
-            args.push('--device', `${device.device}-7${devPackage}C`);
+            generatedArgs.push('--device', `${device.device}-7${devPackage}C`);
             break;
         }
         default: {
@@ -100,23 +110,40 @@ export const generateNextpnrWorkerOptions = (
         }
     }
 
-    args.push('--json', inputFiles[0]);
+    generatedArgs.push('--json', inputFiles[0]);
 
     if (options.placedSvg) {
         const file = getTargetFile(target, 'placed.svg');
-        outputFiles.push(file);
-        args.push('--placed-svg', file);
+        generatedOutputFiles.push(file);
+        generatedArgs.push('--placed-svg', file);
     }
     if (options.routedSvg) {
         const file = getTargetFile(target, 'routed.svg');
-        outputFiles.push(file);
-        args.push('--routed-svg', file);
+        generatedOutputFiles.push(file);
+        generatedArgs.push('--routed-svg', file);
     }
     if (options.routedJson) {
         const file = getTargetFile(target, 'routed.nextpnr.json');
-        outputFiles.push(file);
-        args.push('--write', file);
+        generatedOutputFiles.push(file);
+        generatedArgs.push('--write', file);
     }
+
+    const outputFiles = getCombined(
+        project.getConfiguration(),
+        targetId,
+        'nextpnr',
+        'outputFiles',
+        generatedOutputFiles
+    ).filter((f) => !!f);
+
+    const args = getCombined(
+        project.getConfiguration(),
+        targetId,
+        'nextpnr',
+        'arguments',
+        generatedArgs,
+        parseNextpnrArguments
+    );
 
     return {
         inputFiles,
@@ -125,53 +152,10 @@ export const generateNextpnrWorkerOptions = (
         options,
         steps: [
             {
+                id: 'pnr',
                 tool,
                 arguments: args
             }
         ]
-    };
-};
-
-export const parseNextpnrArguments = (args: string[]) => args.flatMap((arg) => parseArgs(arg));
-
-export const getNextpnrWorkerOptions = (project: Project, targetId: string): NextpnrWorkerOptions => {
-    const generated = generateNextpnrWorkerOptions(project.getConfiguration(), targetId);
-
-    const inputFiles = getCombined(
-        project.getConfiguration(),
-        targetId,
-        'nextpnr',
-        'inputFiles',
-        generated.inputFiles
-    ).filter((f) => !!f);
-    const outputFiles = getCombined(
-        project.getConfiguration(),
-        targetId,
-        'nextpnr',
-        'outputFiles',
-        generated.outputFiles
-    ).filter((f) => !!f);
-
-    const target = generated.target;
-    const options = generated.options;
-    const steps = generated.steps.map((step) => {
-        const tool = step.tool;
-        const args = getCombined(
-            project.getConfiguration(),
-            targetId,
-            'nextpnr',
-            'arguments',
-            step.arguments,
-            parseNextpnrArguments
-        );
-        return {tool, arguments: args};
-    });
-
-    return {
-        inputFiles,
-        outputFiles,
-        target,
-        options,
-        steps
     };
 };
