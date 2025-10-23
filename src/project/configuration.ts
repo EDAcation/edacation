@@ -41,11 +41,15 @@ const schemaYosysOptions = z.object({
 });
 
 const schemaYosys = z.object({
-    commands: schemaValueList.optional(),
+    synthPrepareCommands: schemaValueList.optional(),
+    synthCommands: schemaValueList.optional(),
+    rtlCommands: schemaValueList.optional(),
     options: schemaYosysOptions.optional()
 });
 const schemaYosysTarget = z.object({
-    commands: schemaValueListTarget.optional(),
+    synthPrepareCommands: schemaValueListTarget.optional(),
+    synthCommands: schemaValueListTarget.optional(),
+    rtlCommands: schemaValueListTarget.optional(),
     options: schemaYosysOptions.optional()
 });
 
@@ -70,11 +74,13 @@ const schemaIVerilogOptions = z.object({
 });
 
 const schemaIVerilog = z.object({
-    arguments: schemaValueList.optional(),
+    packerArguments: schemaValueList.optional(),
+    flasherArguments: schemaValueList.optional(),
     options: schemaIVerilogOptions.optional()
 });
 const schemaIVerilogTarget = z.object({
-    arguments: schemaValueListTarget.optional(),
+    packerArguments: schemaValueListTarget.optional(),
+    flasherArguments: schemaValueListTarget.optional(),
     options: schemaIVerilogOptions.optional()
 });
 
@@ -159,6 +165,7 @@ export type TargetOptionTypes = {
 };
 
 export interface WorkerStep {
+    id: string;
     tool: string;
     arguments: string[];
 }
