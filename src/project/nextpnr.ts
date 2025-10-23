@@ -37,7 +37,7 @@ export const getNextpnrWorkerOptions = (
     // Input files
     const generatedInputFiles = [`${family.architecture}.json`].map(f => getTargetFile(target, f));
     const inputFiles = getCombined(
-        project.getConfiguration(),
+        configuration,
         targetId,
         'nextpnr',
         'inputFiles',
@@ -129,7 +129,7 @@ export const getNextpnrWorkerOptions = (
     }
 
     const outputFiles = getCombined(
-        project.getConfiguration(),
+        configuration,
         targetId,
         'nextpnr',
         'outputFiles',
@@ -137,7 +137,7 @@ export const getNextpnrWorkerOptions = (
     ).filter((f) => !!f);
 
     const args = getCombined(
-        project.getConfiguration(),
+        configuration,
         targetId,
         'nextpnr',
         'arguments',

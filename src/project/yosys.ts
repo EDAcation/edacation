@@ -103,7 +103,7 @@ export const getYosysRTLWorkerOptions = (project: Project, targetId: string): Yo
         `write_json "${getTargetFile(target, 'rtl.yosys.json')}";`,
         ''
     ];
-    const commands = getCombined(project.getConfiguration(), targetId, 'yosys', 'rtlCommands', generatedCommands);
+    const commands = getCombined(configuration, targetId, 'yosys', 'rtlCommands', generatedCommands);
 
     return {
         inputFiles,
@@ -143,7 +143,7 @@ export const getYosysSynthesisWorkerOptions = (project: Project, targetId: strin
         `write_json "${getTargetFile(target, 'presynth.yosys.json')}";`,
         ''
     ];
-    const prepareCommands = getCombined(project.getConfiguration(), targetId, 'yosys', 'synthPrepareCommands', generatedPrepareCommands);
+    const prepareCommands = getCombined(configuration, targetId, 'yosys', 'synthPrepareCommands', generatedPrepareCommands);
 
     // Commands (synthesis)
     const generatedSynthCommands = [
@@ -156,7 +156,7 @@ export const getYosysSynthesisWorkerOptions = (project: Project, targetId: strin
         generatedSynthCommands.push(`synth_${family.architecture} -json "${family.architecture}.json";`);
     }
     generatedSynthCommands.push('');
-    const synthCommands = getCombined(project.getConfiguration(), targetId, 'yosys', 'synthCommands', generatedSynthCommands);
+    const synthCommands = getCombined(configuration, targetId, 'yosys', 'synthCommands', generatedSynthCommands);
 
     return {
         inputFiles,

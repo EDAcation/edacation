@@ -46,7 +46,7 @@ export const getIVerilogWorkerOptions = (
 
     const generatedInputFiles = designFiles.concat([testbenchFile]);
     const inputFiles = getCombined(
-        project.getConfiguration(),
+        configuration,
         targetId,
         'iverilog',
         'inputFiles',
@@ -57,7 +57,7 @@ export const getIVerilogWorkerOptions = (
     const compiledFile = getTargetFile(target, 'simulator.vvp');
     const generatedOutputFiles: string[] = [compiledFile, `${path.parse(testbenchFile).name}.vcd`];
     const outputFiles = getCombined(
-        project.getConfiguration(),
+        configuration,
         targetId,
         'iverilog',
         'outputFiles',
@@ -71,7 +71,7 @@ export const getIVerilogWorkerOptions = (
         testbenchFile,
     ];
     const compileArgs = getCombined(
-        project.getConfiguration(),
+        configuration,
         targetId,
         'iverilog',
         'arguments',

@@ -73,21 +73,21 @@ export const getFlasherWorkerOptions = (
     }
 
     const inputFiles = getCombined(
-        project.getConfiguration(),
+        configuration,
         targetId,
         'flasher',
         'inputFiles',
         generatedInputFiles
     ).filter((f) => !!f);
     const outputFiles = getCombined(
-        project.getConfiguration(),
+        configuration,
         targetId,
         'flasher',
         'outputFiles',
         generatedOutputFiles
     ).filter((f) => !!f);
     const packerArgs = getCombined(
-        project.getConfiguration(),
+        configuration,
         targetId,
         'flasher',
         'packerArguments',
@@ -95,7 +95,7 @@ export const getFlasherWorkerOptions = (
         parseFlasherArguments
     )
     const flasherArgs = getCombined(
-        project.getConfiguration(),
+        configuration,
         targetId,
         'flasher',
         'flasherArguments',
