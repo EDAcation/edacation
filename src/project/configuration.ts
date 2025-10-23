@@ -41,7 +41,9 @@ const schemaYosysOptions = z.object({
 });
 
 const schemaYosys = z.object({
-    commands: schemaValueList.optional(),
+    synthPrepareCommands: schemaValueList.optional(),
+    synthCommands: schemaValueList.optional(),
+    rtlCommands: schemaValueList.optional(),
     options: schemaYosysOptions.optional()
 });
 const schemaYosysTarget = z.object({
@@ -159,6 +161,7 @@ export type TargetOptionTypes = {
 };
 
 export interface WorkerStep {
+    id: string;
     tool: string;
     arguments: string[];
 }

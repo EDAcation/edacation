@@ -3,9 +3,9 @@ import path from 'path';
 import {FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_VERILOG, FILE_EXTENSIONS_VHDL} from '../util.js';
 
 import type {ProjectConfiguration, WorkerOptions, WorkerStep, YosysOptions} from './configuration.js';
-import {type Architecture, VENDORS} from './devices.js';
-import type {Project, ProjectInputFile} from './project.js';
-import {getCombined, getDefaultOptions, getOptions, getTarget, getTargetFile} from './target.js';
+import {VENDORS} from './devices.js';
+import type {Project} from './project.js';
+import {getCombined, getOptions, getTarget, getTargetFile} from './target.js';
 
 export interface YosysStep extends WorkerStep {
     commands: string[];
@@ -16,6 +16,9 @@ export type YosysWorkerOptions = WorkerOptions<YosysStep, YosysOptions>;
 const DEFAULT_OPTIONS: YosysOptions = {
     optimize: true
 };
+
+export const getYosysOptions = (configuration: ProjectConfiguration, targetId: string): YosysOptions =>
+    getOptions(configuration, targetId, 'yosys', DEFAULT_OPTIONS);
 
 const getFileIngestCommands = (inputFiles: string[], options: YosysOptions): string[] => {
     const commands: string[] = [];
@@ -46,51 +49,61 @@ const getFileIngestCommands = (inputFiles: string[], options: YosysOptions): str
     return commands;
 };
 
-const getSynthCommands = (arch: Architecture, outFile: string): string[] => {
-    const commands: string[] = [];
-    if (arch === 'generic') {
-        commands.push('synth;');
-        commands.push(`write_json "${outFile}";`);
-    } else {
-        commands.push(`synth_${arch} -json "${outFile}";`);
-    }
-
-    return commands;
-};
-
-export const getYosysDefaultOptions = (configuration: ProjectConfiguration): YosysOptions =>
-    getDefaultOptions(configuration, 'yosys', DEFAULT_OPTIONS);
-
-export const getYosysOptions = (configuration: ProjectConfiguration, targetId: string): YosysOptions =>
-    getOptions(configuration, targetId, 'yosys', DEFAULT_OPTIONS);
-
-export const generateYosysWorkerOptions = (
-    configuration: ProjectConfiguration,
-    projectInputFiles: ProjectInputFile[],
-    targetId: string
-): YosysWorkerOptions => {
-    const target = getTarget(configuration, targetId);
-    const options = getYosysOptions(configuration, targetId);
-
-    const vendor = VENDORS[target.vendor];
-    const family = vendor.families[target.family];
-
-    const inputFiles = projectInputFiles
+const getInputFiles = (project: Project, targetId: string): string[] => {
+    const generatedInputFiles = project.getInputFiles()
         .filter(
             (inputFile) =>
                 inputFile.type === 'design' && FILE_EXTENSIONS_HDL.includes(path.extname(inputFile.path).substring(1))
         )
         .map((file) => file.path);
-    const outputFiles = [getTargetFile(target, `${family.architecture}.json`)];
 
-    const tool = 'yosys';
-    const commands = [...getFileIngestCommands(inputFiles, options), 'proc;'];
+    return getCombined(
+        project.getConfiguration(),
+        targetId,
+        'yosys',
+        'inputFiles',
+        generatedInputFiles
+    ).filter((f) => !!f);
+}
 
-    if (options.optimize) {
-        commands.push('opt;');
-    }
+const getOutputFiles = (project: Project, targetId: string, files: string[]): string[] => {
+    const target = project.getTarget(targetId);
+    if (target === null) throw new Error('Target not found');
 
-    commands.push(...getSynthCommands(family.architecture, outputFiles[0]));
+    const generatedOutputFiles = files.map(f => getTargetFile(target.config, f));
+    return getCombined(
+        project.getConfiguration(),
+        targetId,
+        'yosys',
+        'outputFiles',
+        generatedOutputFiles
+    ).filter((f) => !!f);
+}
+
+export const getYosysRTLWorkerOptions = (project: Project, targetId: string): YosysWorkerOptions => {
+    const configuration = project.getConfiguration();
+    const target = getTarget(configuration, targetId);
+    const options = getYosysOptions(configuration, targetId);
+
+    // Input files
+    const inputFiles = getInputFiles(project, targetId);
+
+    // Output files
+    const outputFiles = getOutputFiles(project, targetId, ["stats.yosys.json", "rtl.yosys.json"]);
+
+    // Commands
+    const generatedCommands = [
+        ...getFileIngestCommands(inputFiles, options),
+        'proc;',
+        'opt;',
+        'memory -nomap;',
+        'wreduce -memx;',
+        'opt -full;',
+        `tee -q -o "${getTargetFile(target, 'stats.yosys.json')}" stat -json -width *;`,
+        `write_json "${getTargetFile(target, 'rtl.yosys.json')}";`,
+        ''
+    ];
+    const commands = getCombined(project.getConfiguration(), targetId, 'yosys', 'rtlCommands', generatedCommands);
 
     return {
         inputFiles,
@@ -99,7 +112,8 @@ export const generateYosysWorkerOptions = (
         options,
         steps: [
             {
-                tool,
+                id: 'rtl',
+                tool: 'yosys',
                 arguments: [],
                 commands
             }
@@ -107,76 +121,61 @@ export const generateYosysWorkerOptions = (
     };
 };
 
-export const getYosysWorkerOptions = (project: Project, targetId: string): YosysWorkerOptions => {
-    const generated = generateYosysWorkerOptions(project.getConfiguration(), project.getInputFiles(), targetId);
+export const getYosysSynthesisWorkerOptions = (project: Project, targetId: string): YosysWorkerOptions => {
+    const configuration = project.getConfiguration();
+    const target = getTarget(configuration, targetId);
+    const options = getYosysOptions(configuration, targetId);
 
-    const inputFiles = getCombined(
-        project.getConfiguration(),
-        targetId,
-        'yosys',
-        'inputFiles',
-        generated.inputFiles
-    ).filter((f) => !!f);
-    const outputFiles = getCombined(
-        project.getConfiguration(),
-        targetId,
-        'yosys',
-        'outputFiles',
-        generated.outputFiles
-    ).filter((f) => !!f);
+    const vendor = VENDORS[target.vendor];
+    const family = vendor.families[target.family];
 
-    const target = generated.target;
-    const options = generated.options;
-    const steps = generated.steps.map((step) => {
-        const tool = step.tool;
-        const args = step.arguments;
-        const commands = getCombined(project.getConfiguration(), targetId, 'yosys', 'commands', step.commands);
-        return {tool, arguments: args, commands};
-    });
+    // Input files
+    const inputFiles = getInputFiles(project, targetId);
+
+    // Output files
+    const outputFiles = getOutputFiles(project, targetId, [`${family.architecture}.json`]);
+
+    // Commands (preparation)
+    const generatedPrepareCommands = [
+        ...getFileIngestCommands(inputFiles, options),
+        'proc;',
+        'opt;',
+        `write_json "${getTargetFile(target, 'presynth.yosys.json')}";`,
+        ''
+    ];
+    const prepareCommands = getCombined(project.getConfiguration(), targetId, 'yosys', 'synthPrepareCommands', generatedPrepareCommands);
+
+    // Commands (synthesis)
+    const generatedSynthCommands = [
+        `read_json "${getTargetFile(target, 'presynth.yosys.json')}"`,
+    ];
+    if (family.architecture === 'generic') {
+        generatedSynthCommands.push('synth;');
+        generatedSynthCommands.push(`write_json "${family.architecture}.json";`);
+    } else {
+        generatedSynthCommands.push(`synth_${family.architecture} -json "${family.architecture}.json";`);
+    }
+    generatedSynthCommands.push('');
+    const synthCommands = getCombined(project.getConfiguration(), targetId, 'yosys', 'synthCommands', generatedSynthCommands);
 
     return {
         inputFiles,
         outputFiles,
         target,
         options,
-        steps
+        steps: [
+            {
+                id: 'prepare',
+                tool: 'yosys',
+                arguments: [],
+                commands: prepareCommands
+            },
+            {
+                id: 'synth',
+                tool: 'yosys',
+                arguments: [],
+                commands: synthCommands
+            }
+        ]
     };
-};
-
-export const generateYosysRTLCommands = (workerOptions: YosysWorkerOptions): string[] => {
-    // Yosys commands taken from yosys2digitaljs (https://github.com/tilk/yosys2digitaljs/blob/1b4afeae61/src/index.js#L1225)
-
-    return [
-        ...getFileIngestCommands(workerOptions.inputFiles, workerOptions.options),
-        'proc;',
-        'opt;',
-        'memory -nomap;',
-        'wreduce -memx;',
-        'opt -full;',
-        `tee -q -o ${getTargetFile(workerOptions.target, 'stats.yosys.json')} stat -json -width *;`,
-        `write_json "${getTargetFile(workerOptions.target, 'rtl.yosys.json')}";`,
-        ''
-    ];
-};
-
-export const generateYosysSynthPrepareCommands = (workerOptions: YosysWorkerOptions): string[] => {
-    return [
-        ...getFileIngestCommands(workerOptions.inputFiles, workerOptions.options),
-        'proc;',
-        'opt;',
-        `write_json "${getTargetFile(workerOptions.target, 'presynth.yosys.json')}";`,
-        ''
-    ];
-};
-
-export const generateYosysSynthCommands = (workerOptions: YosysWorkerOptions): string[] => {
-    const target = workerOptions.target;
-    const vendor = VENDORS[target.vendor];
-    const family = vendor.families[target.family];
-
-    return [
-        `read_json "${getTargetFile(workerOptions.target, 'presynth.yosys.json')}"`,
-        ...getSynthCommands(family.architecture, workerOptions.outputFiles[0]),
-        ''
-    ];
 };
