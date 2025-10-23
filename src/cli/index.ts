@@ -5,7 +5,7 @@ import type {Argv} from 'yargs';
 import {hideBin} from 'yargs/helpers';
 import yargs from 'yargs/yargs';
 
-import {Project, VENDORS, getNextpnrWorkerOptions, getYosysWorkerOptions} from '../project/index.js';
+import {Project, VENDORS, getNextpnrWorkerOptions, getYosysSynthesisWorkerOptions} from '../project/index.js';
 import {formatArguments} from '../util.js';
 
 import {executeTool} from './tool.js';
@@ -151,7 +151,7 @@ import {exists} from './util.js';
     }
 
     if (command === 'yosys') {
-        const workerOptions = getYosysWorkerOptions(project, target.id);
+        const workerOptions = getYosysSynthesisWorkerOptions(project, target.id);
 
         for (const step of workerOptions.steps) {
             console.log([step.tool, ''].concat(step.commands).join('\n'));
