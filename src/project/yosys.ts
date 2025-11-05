@@ -155,9 +155,9 @@ export const getYosysSynthesisWorkerOptions = (project: Project, targetId: strin
     ];
     if (family.architecture === 'generic') {
         generatedSynthCommands.push('synth;');
-        generatedSynthCommands.push(`write_json "${family.architecture}.json";`);
+        generatedSynthCommands.push(`write_json "${getTargetFile(target, family.architecture)}.json"`);
     } else {
-        generatedSynthCommands.push(`synth_${family.architecture} -json "${family.architecture}.json";`);
+        generatedSynthCommands.push(`synth_${family.architecture} -json "${getTargetFile(target, family.architecture)}.json"`);
     }
     generatedSynthCommands.push('');
     const synthCommands = getCombined(configuration, targetId, 'yosys', 'synthCommands', generatedSynthCommands);
