@@ -1,3 +1,4 @@
+import path from 'path';
 import {decodeJSON, encodeJSON, FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_PINCFG} from '../util.js';
 
 import {DEFAULT_CONFIGURATION, DEFAULT_TARGET, type ProjectConfiguration, schemaProjectConfiguration, TargetConfiguration, TargetOptionTypes, WorkerId} from './configuration.js';
@@ -5,7 +6,7 @@ import {Device, Family, Vendor, VENDORS} from './devices.js';
 import { getFlasherOptions } from './flasher.js';
 import { getIVerilogOptions } from './iverilog.js';
 import { getNextpnrOptions } from './nextpnr.js';
-import { defaultParse, getCombined } from './target.js';
+import { defaultParse, getCombined, getTargetFile } from './target.js';
 import { getYosysOptions } from './yosys.js';
 
 // Utility types for strongly typed array-based paths into TargetConfiguration
@@ -201,6 +202,10 @@ export class ProjectTarget {
     setActive() {
         if (this.isActive) return;
         this._project.setActiveTarget(this.id);
+    }
+
+    getFile(...parts: string[]) {
+        return getTargetFile(this.config, path.join(...parts));
     }
 
     get vendorId(): string {
