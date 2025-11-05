@@ -69,32 +69,32 @@ const schemaNextpnrTarget = z.object({
     options: schemaNextpnrOptions.optional()
 });
 
-const schemaIVerilogOptions = z.object({
-    testbenchFile: z.string().optional()
-});
-
-const schemaIVerilog = z.object({
-    packerArguments: schemaValueList.optional(),
-    flasherArguments: schemaValueList.optional(),
-    options: schemaIVerilogOptions.optional()
-});
-const schemaIVerilogTarget = z.object({
-    packerArguments: schemaValueListTarget.optional(),
-    flasherArguments: schemaValueListTarget.optional(),
-    options: schemaIVerilogOptions.optional()
-});
-
 const schemaFlasherOptions = z.object({
     board: z.string().optional()
 });
 
 const schemaFlasher = z.object({
-    arguments: schemaValueList.optional(),
+    packerArguments: schemaValueList.optional(),
+    flasherArguments: schemaValueList.optional(),
     options: schemaFlasherOptions.optional()
 });
 const schemaFlasherTarget = z.object({
-    arguments: schemaValueListTarget.optional(),
+    packerArguments: schemaValueListTarget.optional(),
+    flasherArguments: schemaValueListTarget.optional(),
     options: schemaFlasherOptions.optional()
+});
+
+const schemaIVerilogOptions = z.object({
+    testbenchFile: z.string().optional()
+});
+
+const schemaIVerilog = z.object({
+    arguments: schemaValueList.optional(),
+    options: schemaIVerilogOptions.optional()
+});
+const schemaIVerilogTarget = z.object({
+    arguments: schemaValueListTarget.optional(),
+    options: schemaIVerilogOptions.optional()
 });
 
 const schemaCombinedYosys = schemaWorker.merge(schemaYosys);
