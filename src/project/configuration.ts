@@ -164,10 +164,17 @@ export type TargetOptionTypes = {
     flasher: FlasherOptions;
 };
 
+export interface GeneratedFile {
+    name: string;
+    content: Uint8Array;
+}
+
 export interface WorkerStep {
     id: string;
     tool: string;
     arguments: string[];
+
+    generatedInputFiles?: GeneratedFile[];
 }
 
 export interface WorkerOptions<Step extends WorkerStep, Options> {

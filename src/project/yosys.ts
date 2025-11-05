@@ -105,6 +105,7 @@ export const getYosysRTLWorkerOptions = (project: Project, targetId: string): Yo
     ];
     const commands = getCombined(configuration, targetId, 'yosys', 'rtlCommands', generatedCommands);
 
+    const encoder = new TextEncoder();
     return {
         inputFiles,
         outputFiles,
@@ -114,8 +115,11 @@ export const getYosysRTLWorkerOptions = (project: Project, targetId: string): Yo
             {
                 id: 'rtl',
                 tool: 'yosys',
-                arguments: [],
-                commands
+                arguments: ['rtl.ys'],
+                generatedInputFiles: [
+                    {name: 'rtl.ys', content: encoder.encode(commands.join('\n'))}
+                ],
+                commands,
             }
         ]
     };
@@ -158,6 +162,7 @@ export const getYosysSynthesisWorkerOptions = (project: Project, targetId: strin
     generatedSynthCommands.push('');
     const synthCommands = getCombined(configuration, targetId, 'yosys', 'synthCommands', generatedSynthCommands);
 
+    const encoder = new TextEncoder();
     return {
         inputFiles,
         outputFiles,
@@ -167,14 +172,20 @@ export const getYosysSynthesisWorkerOptions = (project: Project, targetId: strin
             {
                 id: 'prepare',
                 tool: 'yosys',
-                arguments: [],
-                commands: prepareCommands
+                arguments: ['synth-prepare.ys'],
+                generatedInputFiles: [
+                    {name: 'synth-prepare.ys', content: encoder.encode(prepareCommands.join('\n'))}
+                ],
+                commands: prepareCommands,
             },
             {
                 id: 'synth',
                 tool: 'yosys',
-                arguments: [],
-                commands: synthCommands
+                arguments: ['synth.ys'],
+                generatedInputFiles: [
+                    {name: 'synth.ys', content: encoder.encode(synthCommands.join('\n'))}
+                ],
+                commands: synthCommands,
             }
         ]
     };
