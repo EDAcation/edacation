@@ -2,7 +2,7 @@ import {parseArgs} from 'string-args-parser';
 
 import type {FlasherOptions, ProjectConfiguration, WorkerOptions, WorkerStep} from './configuration.js';
 import type {Project} from './project.js';
-import {getCombined, getDefaultOptions, getOptions, getTarget, getTargetFile} from './target.js';
+import {getCombined, getOptions, getTarget, getTargetFile} from './target.js';
 import { VENDORS } from './devices.js';
 
 // Empty for now
@@ -14,54 +14,57 @@ const DEFAULT_OPTIONS: FlasherOptions = {
     board: undefined,
 };
 
-export const getFlasherDefaultOptions = (configuration: ProjectConfiguration): FlasherOptions =>
-    getDefaultOptions(configuration, 'flasher', DEFAULT_OPTIONS);
+export const parseFlasherArguments = (args: string[]) => args.flatMap((arg) => parseArgs(arg));
 
 export const getFlasherOptions = (configuration: ProjectConfiguration, targetId: string): FlasherOptions =>
     getOptions(configuration, targetId, 'flasher', DEFAULT_OPTIONS);
 
-export const generateFlasherWorkerOptions = (
-    configuration: ProjectConfiguration,
+export const getFlasherWorkerOptions = (
+    project: Project,
     targetId: string
 ): FlasherWorkerOptions => {
+    const configuration = project.getConfiguration();
     const target = getTarget(configuration, targetId);
     const options = getFlasherOptions(configuration, targetId);
 
     const vendor = VENDORS[target.vendor];
     const family = vendor.families[target.family];
 
-    const inputFiles: string[] = [];
-    const outputFiles: string[] = [];
-    const steps: FlasherStep[] = [];
-    const flasherArgs: string[] = [];
+    const generatedInputFiles: string[] = [];
+    const generatedOutputFiles: string[] = [];
+    let packerTool: string;
+    const generatedPackerArgs: string[] = [];
+    const generatedFlasherArgs: string[] = [];
 
     if (options.board) {
-        flasherArgs.push('-b', options.board);
+        generatedFlasherArgs.push('-b', options.board);
     }
 
     switch (family.architecture) {
         case 'ecp5': {
             const bitstreamFile = getTargetFile(target, `${family.architecture}.config`);
-            inputFiles.push(bitstreamFile);
+            generatedInputFiles.push(bitstreamFile);
 
             const packedFile = getTargetFile(target, `${family.architecture}.bit`);
-            outputFiles.push(packedFile);
+            generatedOutputFiles.push(packedFile);
 
-            steps.push({tool: 'ecppack', arguments: [bitstreamFile, packedFile]});
+            packerTool = 'ecppack';
+            generatedPackerArgs.push(bitstreamFile, packedFile);
 
-            flasherArgs.push(packedFile);
+            generatedFlasherArgs.push(packedFile);
             break;
         }
         case 'ice40': {
             const bitstreamFile = getTargetFile(target, `${family.architecture}.asc`);
-            inputFiles.push(bitstreamFile);
+            generatedInputFiles.push(bitstreamFile);
 
             const packedFile = getTargetFile(target, `${family.architecture}.bin`);
-            outputFiles.push(packedFile);
+            generatedOutputFiles.push(packedFile);
 
-            steps.push({tool: 'icepack', arguments: [bitstreamFile, packedFile]});
+            packerTool = 'icepack';
+            generatedPackerArgs.push(bitstreamFile, packedFile);
 
-            flasherArgs.push(packedFile);
+            generatedFlasherArgs.push(packedFile);
             break;
         }
         default: {
@@ -69,50 +72,53 @@ export const generateFlasherWorkerOptions = (
         }
     }
 
-    steps.push({tool: 'openFPGALoader', arguments: flasherArgs});
-
-    return {
-        inputFiles,
-        outputFiles,
-        target,
-        options,
-        steps
-    };
-};
-
-export const parseFlasherArguments = (args: string[]) => args.flatMap((arg) => parseArgs(arg));
-
-export const getFlasherWorkerOptions = (project: Project, targetId: string): FlasherWorkerOptions => {
-    const generated = generateFlasherWorkerOptions(project.getConfiguration(), targetId);
-
     const inputFiles = getCombined(
-        project.getConfiguration(),
+        configuration,
         targetId,
         'flasher',
         'inputFiles',
-        generated.inputFiles
+        generatedInputFiles
     ).filter((f) => !!f);
     const outputFiles = getCombined(
-        project.getConfiguration(),
+        configuration,
         targetId,
         'flasher',
         'outputFiles',
-        generated.outputFiles
+        generatedOutputFiles
     ).filter((f) => !!f);
-
-    const target = generated.target;
-    const options = generated.options;
-    const steps = generated.steps.map((step) => {
-        const tool = step.tool;
-        const args = getCombined(project.getConfiguration(), targetId, 'flasher', 'arguments', step.arguments, parseFlasherArguments);
-        return {tool, arguments: args};
-    });
+    const packerArgs = getCombined(
+        configuration,
+        targetId,
+        'flasher',
+        'packerArguments',
+        generatedPackerArgs,
+        parseFlasherArguments
+    )
+    const flasherArgs = getCombined(
+        configuration,
+        targetId,
+        'flasher',
+        'flasherArguments',
+        generatedFlasherArgs,
+        parseFlasherArguments
+    )
 
     return {
         inputFiles,
         outputFiles,
         target,
         options,
-        steps
+        steps: [
+            {
+                id: 'pack',
+                tool: packerTool,
+                arguments: packerArgs
+            },
+            {
+                id: 'flash',
+                tool: 'openFPGALoader',
+                arguments: flasherArgs
+            }
+        ]
     };
 };

@@ -41,11 +41,15 @@ const schemaYosysOptions = z.object({
 });
 
 const schemaYosys = z.object({
-    commands: schemaValueList.optional(),
+    synthPrepareCommands: schemaValueList.optional(),
+    synthCommands: schemaValueList.optional(),
+    rtlCommands: schemaValueList.optional(),
     options: schemaYosysOptions.optional()
 });
 const schemaYosysTarget = z.object({
-    commands: schemaValueListTarget.optional(),
+    synthPrepareCommands: schemaValueListTarget.optional(),
+    synthCommands: schemaValueListTarget.optional(),
+    rtlCommands: schemaValueListTarget.optional(),
     options: schemaYosysOptions.optional()
 });
 
@@ -65,6 +69,21 @@ const schemaNextpnrTarget = z.object({
     options: schemaNextpnrOptions.optional()
 });
 
+const schemaFlasherOptions = z.object({
+    board: z.string().optional()
+});
+
+const schemaFlasher = z.object({
+    packerArguments: schemaValueList.optional(),
+    flasherArguments: schemaValueList.optional(),
+    options: schemaFlasherOptions.optional()
+});
+const schemaFlasherTarget = z.object({
+    packerArguments: schemaValueListTarget.optional(),
+    flasherArguments: schemaValueListTarget.optional(),
+    options: schemaFlasherOptions.optional()
+});
+
 const schemaIVerilogOptions = z.object({
     testbenchFile: z.string().optional()
 });
@@ -76,19 +95,6 @@ const schemaIVerilog = z.object({
 const schemaIVerilogTarget = z.object({
     arguments: schemaValueListTarget.optional(),
     options: schemaIVerilogOptions.optional()
-});
-
-const schemaFlasherOptions = z.object({
-    board: z.string().optional()
-});
-
-const schemaFlasher = z.object({
-    arguments: schemaValueList.optional(),
-    options: schemaFlasherOptions.optional()
-});
-const schemaFlasherTarget = z.object({
-    arguments: schemaValueListTarget.optional(),
-    options: schemaFlasherOptions.optional()
 });
 
 const schemaCombinedYosys = schemaWorker.merge(schemaYosys);
@@ -158,9 +164,17 @@ export type TargetOptionTypes = {
     flasher: FlasherOptions;
 };
 
+export interface GeneratedFile {
+    name: string;
+    content: Uint8Array;
+}
+
 export interface WorkerStep {
+    id: string;
     tool: string;
     arguments: string[];
+
+    generatedInputFiles?: GeneratedFile[];
 }
 
 export interface WorkerOptions<Step extends WorkerStep, Options> {
