@@ -14,6 +14,7 @@ const DEFAULT_OPTIONS: NextpnrOptions = {
     placedSvg: false,
     routedSvg: false,
     routedJson: true,
+    reportJson: true,
     pinConfigFile: undefined
 };
 
@@ -126,6 +127,11 @@ export const getNextpnrWorkerOptions = (
         const file = getTargetFile(target, 'routed.nextpnr.json');
         generatedOutputFiles.push(file);
         generatedArgs.push('--write', file);
+    }
+    if (options.reportJson) {
+        const file = getTargetFile(target, 'report.json');
+        generatedOutputFiles.push(file);
+        generatedArgs.push('--detailed-timing-report', '--report', file);
     }
 
     const outputFiles = getCombined(
