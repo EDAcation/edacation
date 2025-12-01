@@ -57,6 +57,7 @@ const schemaNextpnrOptions = z.object({
     placedSvg: z.boolean().optional(),
     routedSvg: z.boolean().optional(),
     routedJson: z.boolean().optional(),
+    timingJson: z.boolean().optional(),
     pinConfigFile: z.string().optional()
 });
 
