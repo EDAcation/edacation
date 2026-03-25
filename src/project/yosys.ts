@@ -1,11 +1,11 @@
 import path from 'path';
 
-import {FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_VERILOG, FILE_EXTENSIONS_VHDL} from '../util.js';
+import { FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_VERILOG, FILE_EXTENSIONS_VHDL } from '../util.js';
 
-import type {ProjectConfiguration, WorkerOptions, WorkerStep, YosysOptions} from './configuration.js';
-import {VENDORS} from './devices.js';
-import type {Project} from './project.js';
-import {getCombined, getOptions, getTarget, getTargetFile} from './target.js';
+import type { ProjectConfiguration, WorkerOptions, WorkerStep, YosysOptions } from './configuration.js';
+import { VENDORS } from './devices.js';
+import type { Project } from './project.js';
+import { getCombined, getOptions, getTarget, getTargetFile } from './target.js';
 
 export interface YosysStep extends WorkerStep {
     commands: string[];
@@ -95,14 +95,18 @@ export const getYosysRTLWorkerOptions = (project: Project, targetId: string): Yo
     const generatedCommands = [
         ...getFileIngestCommands(inputFiles, options),
         'proc;',
-        'opt;',
-        'memory -nomap;',
+    ];
+    if (options.optimize) generatedCommands.push('opt;');
+    generatedCommands.push('memory -nomap;');
+    if (options.optimize) generatedCommands.push(
         'wreduce -memx;',
         'opt -full;',
+    );
+    generatedCommands.push(
         `tee -q -o "${getTargetFile(target, 'stats.yosys.json')}" stat -json -width *;`,
         `write_json "${getTargetFile(target, 'rtl.yosys.json')}";`,
         ''
-    ];
+    );
     const commands = getCombined(configuration, targetId, 'yosys', 'rtlCommands', generatedCommands);
 
     const encoder = new TextEncoder();
@@ -143,10 +147,12 @@ export const getYosysSynthesisWorkerOptions = (project: Project, targetId: strin
     const generatedPrepareCommands = [
         ...getFileIngestCommands(inputFiles, options),
         'proc;',
-        'opt;',
-        `write_json "${getTargetFile(target, 'presynth.yosys.json')}";`,
-        ''
     ];
+    if (options.optimize) generatedPrepareCommands.push('opt;');
+    generatedPrepareCommands.push(
+        `write_json "${getTargetFile(target, 'presynth.yosys.json')}";`,
+        '',
+    );
     const prepareCommands = getCombined(configuration, targetId, 'yosys', 'synthPrepareCommands', generatedPrepareCommands);
 
     // Commands (synthesis)
