@@ -1,6 +1,6 @@
-import {z} from 'zod';
+import { z } from 'zod';
 
-import type {ArrayElement} from '../util.js';
+import type { ArrayElement } from '../util.js';
 
 export const DEFAULT_TARGET: TargetConfiguration = {
     id: 'default',
@@ -37,7 +37,8 @@ const schemaWorkerTarget = z.object({
 
 const schemaYosysOptions = z.object({
     optimize: z.boolean().optional(),
-    topLevelModule: z.string().optional()
+    topLevelModule: z.string().optional(),
+    synthArguments: z.string().optional(),
 });
 
 const schemaYosys = z.object({

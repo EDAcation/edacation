@@ -14,7 +14,9 @@ export interface YosysStep extends WorkerStep {
 export type YosysWorkerOptions = WorkerOptions<YosysStep, YosysOptions>;
 
 const DEFAULT_OPTIONS: YosysOptions = {
-    optimize: true
+    optimize: true,
+    topLevelModule: undefined,
+    synthArguments: undefined,
 };
 
 export const getYosysOptions = (configuration: ProjectConfiguration, targetId: string): YosysOptions =>
@@ -157,13 +159,14 @@ export const getYosysSynthesisWorkerOptions = (project: Project, targetId: strin
 
     // Commands (synthesis)
     const generatedSynthCommands = [
-        `read_json "${getTargetFile(target, 'presynth.yosys.json')}"`,
+        `read_json "${getTargetFile(target, 'presynth.yosys.json')}";`,
     ];
+    const synthArgs: string = options.synthArguments || '';
     if (family.architecture === 'generic') {
-        generatedSynthCommands.push('synth;');
-        generatedSynthCommands.push(`write_json "${getTargetFile(target, family.architecture)}.json"`);
+        generatedSynthCommands.push(`synth ${synthArgs};`);
+        generatedSynthCommands.push(`write_json "${getTargetFile(target, family.architecture)}.json";`);
     } else {
-        generatedSynthCommands.push(`synth_${family.architecture} -json "${getTargetFile(target, family.architecture)}.json"`);
+        generatedSynthCommands.push(`synth_${family.architecture} -json "${getTargetFile(target, family.architecture)}.json" ${synthArgs};`);
     }
     generatedSynthCommands.push('');
     const synthCommands = getCombined(configuration, targetId, 'yosys', 'synthCommands', generatedSynthCommands);
