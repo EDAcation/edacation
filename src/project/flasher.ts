@@ -1,9 +1,9 @@
-import {parseArgs} from 'string-args-parser';
+import { parseArgs } from 'string-args-parser';
 
-import type {FlasherOptions, ProjectConfiguration, WorkerOptions, WorkerStep} from './configuration.js';
-import type {Project} from './project.js';
-import {getCombined, getOptions, getTarget, getTargetFile} from './target.js';
+import type { FlasherOptions, ProjectConfiguration, WorkerOptions, WorkerStep } from './configuration.js';
 import { VENDORS } from './devices.js';
+import type { Project } from './project.js';
+import { getCombined, getOptions, getTarget, getTargetFile } from './target.js';
 
 // Empty for now
 export type FlasherStep = WorkerStep;
@@ -12,6 +12,7 @@ export type FlasherWorkerOptions = WorkerOptions<FlasherStep, FlasherOptions>;
 
 const DEFAULT_OPTIONS: FlasherOptions = {
     board: undefined,
+    programToFlash: false,
 };
 
 export const parseFlasherArguments = (args: string[]) => args.flatMap((arg) => parseArgs(arg));
@@ -38,6 +39,9 @@ export const getFlasherWorkerOptions = (
 
     if (options.board) {
         generatedFlasherArgs.push('-b', options.board);
+    }
+    if (options.programToFlash) {
+        generatedFlasherArgs.push('-f');
     }
 
     switch (family.architecture) {

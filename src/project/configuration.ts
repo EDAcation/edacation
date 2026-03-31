@@ -72,7 +72,8 @@ const schemaNextpnrTarget = z.object({
 });
 
 const schemaFlasherOptions = z.object({
-    board: z.string().optional()
+    board: z.string().optional(),
+    programToFlash: z.boolean().optional(),
 });
 
 const schemaFlasher = z.object({
