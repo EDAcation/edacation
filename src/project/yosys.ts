@@ -32,20 +32,20 @@ const getFileIngestCommands = (inputFiles: string[], options: YosysOptions): str
             throw new Error('Top level module must be defined when synthesizing VHDL');
         }
 
-        commands.push('plugin -i ghdl', `ghdl ${vhdlFiles.join(' ')} -e ${options.topLevelModule}`);
+        commands.push('plugin -i ghdl;', `ghdl ${vhdlFiles.join(' ')} -e ${options.topLevelModule};`);
     }
 
     // Load verilog files
     const verilogFiles = inputFiles.filter((file) => FILE_EXTENSIONS_VERILOG.includes(path.extname(file).substring(1)));
     if (verilogFiles.length) {
-        commands.push(...verilogFiles.map((file) => `read_verilog -sv "${file}"`));
+        commands.push(...verilogFiles.map((file) => `read_verilog -sv "${file}";`));
     }
 
     // (auto-)set top-level module
     if (options.topLevelModule) {
-        commands.push(`hierarchy -top ${options.topLevelModule}`);
+        commands.push(`hierarchy -top ${options.topLevelModule};`);
     } else {
-        commands.push('hierarchy -auto-top');
+        commands.push('hierarchy -auto-top;');
     }
 
     return commands;
