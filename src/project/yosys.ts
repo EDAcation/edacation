@@ -1,11 +1,11 @@
 import path from 'path';
 
-import {FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_VERILOG, FILE_EXTENSIONS_VHDL} from '../util.js';
+import { FILE_EXTENSIONS_HDL, FILE_EXTENSIONS_VERILOG, FILE_EXTENSIONS_VHDL } from '../util.js';
 
-import type {ProjectConfiguration, WorkerOptions, WorkerStep, YosysOptions} from './configuration.js';
-import {VENDORS} from './devices.js';
-import type {Project} from './project.js';
-import {getCombined, getOptions, getTarget, getTargetFile} from './target.js';
+import type { ProjectConfiguration, WorkerOptions, WorkerStep, YosysOptions } from './configuration.js';
+import { VENDORS } from './devices.js';
+import type { Project } from './project.js';
+import { getCombined, getOptions, getTarget, getTargetFile } from './target.js';
 
 export interface YosysStep extends WorkerStep {
     commands: string[];
@@ -14,7 +14,9 @@ export interface YosysStep extends WorkerStep {
 export type YosysWorkerOptions = WorkerOptions<YosysStep, YosysOptions>;
 
 const DEFAULT_OPTIONS: YosysOptions = {
-    optimize: true
+    optimize: true,
+    topLevelModule: undefined,
+    synthArguments: undefined,
 };
 
 export const getYosysOptions = (configuration: ProjectConfiguration, targetId: string): YosysOptions =>
@@ -30,20 +32,20 @@ const getFileIngestCommands = (inputFiles: string[], options: YosysOptions): str
             throw new Error('Top level module must be defined when synthesizing VHDL');
         }
 
-        commands.push('plugin -i ghdl', `ghdl ${vhdlFiles.join(' ')} -e ${options.topLevelModule}`);
+        commands.push('plugin -i ghdl;', `ghdl ${vhdlFiles.join(' ')} -e ${options.topLevelModule};`);
     }
 
     // Load verilog files
     const verilogFiles = inputFiles.filter((file) => FILE_EXTENSIONS_VERILOG.includes(path.extname(file).substring(1)));
     if (verilogFiles.length) {
-        commands.push(...verilogFiles.map((file) => `read_verilog -sv "${file}"`));
+        commands.push(...verilogFiles.map((file) => `read_verilog -sv "${file}";`));
     }
 
     // (auto-)set top-level module
     if (options.topLevelModule) {
-        commands.push(`hierarchy -top ${options.topLevelModule}`);
+        commands.push(`hierarchy -top ${options.topLevelModule};`);
     } else {
-        commands.push('hierarchy -auto-top');
+        commands.push('hierarchy -auto-top;');
     }
 
     return commands;
@@ -95,14 +97,18 @@ export const getYosysRTLWorkerOptions = (project: Project, targetId: string): Yo
     const generatedCommands = [
         ...getFileIngestCommands(inputFiles, options),
         'proc;',
-        'opt;',
-        'memory -nomap;',
+    ];
+    if (options.optimize) generatedCommands.push('opt;');
+    generatedCommands.push('memory -nomap;');
+    if (options.optimize) generatedCommands.push(
         'wreduce -memx;',
         'opt -full;',
+    );
+    generatedCommands.push(
         `tee -q -o "${getTargetFile(target, 'stats.yosys.json')}" stat -json -width *;`,
         `write_json "${getTargetFile(target, 'rtl.yosys.json')}";`,
         ''
-    ];
+    );
     const commands = getCombined(configuration, targetId, 'yosys', 'rtlCommands', generatedCommands);
 
     const encoder = new TextEncoder();
@@ -143,21 +149,24 @@ export const getYosysSynthesisWorkerOptions = (project: Project, targetId: strin
     const generatedPrepareCommands = [
         ...getFileIngestCommands(inputFiles, options),
         'proc;',
-        'opt;',
-        `write_json "${getTargetFile(target, 'presynth.yosys.json')}";`,
-        ''
     ];
+    if (options.optimize) generatedPrepareCommands.push('opt;');
+    generatedPrepareCommands.push(
+        `write_json "${getTargetFile(target, 'presynth.yosys.json')}";`,
+        '',
+    );
     const prepareCommands = getCombined(configuration, targetId, 'yosys', 'synthPrepareCommands', generatedPrepareCommands);
 
     // Commands (synthesis)
     const generatedSynthCommands = [
-        `read_json "${getTargetFile(target, 'presynth.yosys.json')}"`,
+        `read_json "${getTargetFile(target, 'presynth.yosys.json')}";`,
     ];
+    const synthArgs: string = options.synthArguments || '';
     if (family.architecture === 'generic') {
-        generatedSynthCommands.push('synth;');
-        generatedSynthCommands.push(`write_json "${getTargetFile(target, family.architecture)}.json"`);
+        generatedSynthCommands.push(`synth ${synthArgs};`);
+        generatedSynthCommands.push(`write_json "${getTargetFile(target, family.architecture)}.json";`);
     } else {
-        generatedSynthCommands.push(`synth_${family.architecture} -json "${getTargetFile(target, family.architecture)}.json"`);
+        generatedSynthCommands.push(`synth_${family.architecture} -json "${getTargetFile(target, family.architecture)}.json" ${synthArgs};`);
     }
     generatedSynthCommands.push('');
     const synthCommands = getCombined(configuration, targetId, 'yosys', 'synthCommands', generatedSynthCommands);
