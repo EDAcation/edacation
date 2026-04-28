@@ -1,9 +1,9 @@
-import {parseArgs} from 'string-args-parser';
+import { parseArgs } from 'string-args-parser';
 
-import type {NextpnrOptions, ProjectConfiguration, WorkerOptions, WorkerStep} from './configuration.js';
-import {VENDORS} from './devices.js';
-import type {Project} from './project.js';
-import {getCombined, getOptions, getTarget, getTargetFile} from './target.js';
+import type { NextpnrOptions, ProjectConfiguration, WorkerOptions, WorkerStep } from './configuration.js';
+import { VENDORS } from './devices.js';
+import type { Project } from './project.js';
+import { getCombined, getOptions, getTarget, getTargetFile } from './target.js';
 
 // Empty for now
 export type NextpnrStep = WorkerStep;
@@ -36,7 +36,10 @@ export const getNextpnrWorkerOptions = (
     const device = family.devices[target.device];
 
     // Input files
-    const generatedInputFiles = [`${family.architecture}.json`].map(f => getTargetFile(target, f));
+    const generatedInputFiles = [
+        getTargetFile(target, `${family.architecture}.json`),
+        ...(options.pinConfigFile ? [options.pinConfigFile] : [])
+    ];
     const inputFiles = getCombined(
         configuration,
         targetId,
