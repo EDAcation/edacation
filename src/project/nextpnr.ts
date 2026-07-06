@@ -49,7 +49,7 @@ export const getNextpnrWorkerOptions = (
     ).filter((f) => !!f);
 
     // Tool
-    const tool = `nextpnr-${family.architecture}`;
+    let tool = `nextpnr-${family.architecture}`;
 
     // Output files / args
     const generatedOutputFiles: string[] = [];
@@ -74,6 +74,8 @@ export const getNextpnrWorkerOptions = (
             break;
         }
         case 'gowin': {
+            tool = 'nextpnr-himbaechel';
+
             generatedArgs.push('--device', `${device.device.replace('-', '-UV')}${target.package}C5/I4`);
             break;
         }
